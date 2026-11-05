@@ -92,4 +92,19 @@ class MainActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
     }
+
+    override fun onPause() {
+        super.onPause()
+        // Ensure all login tokens and session cookies are flushed to disk permanently
+        try {
+            android.webkit.CookieManager.getInstance().flush()
+        } catch (_: Exception) {}
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try {
+            android.webkit.CookieManager.getInstance().flush()
+        } catch (_: Exception) {}
+    }
 }
