@@ -88,4 +88,8 @@ object AppServiceCatalog {
     fun getById(id: String): AppService {
         return customServices[id] ?: services.firstOrNull { it.id == id } ?: services.first()
     }
+
+    fun getServiceById(id: String): AppService? {
+        return customServices[id] ?: services.firstOrNull { it.id == id }
+    }
 }

@@ -48,10 +48,12 @@ Modern mobile operating systems force users to install dozens of heavy, backgrou
 
 **EVA** unifies your essential digital experiences—**Instagram, WhatsApp Web, YouTube, YouTube Music, Spotify, LinkedIn, Facebook, X (Twitter), Reddit, and any custom web service**—into one cohesive, ultra-responsive native container with:
 - **0ms Instant App Switching**: Multi-tab in-memory pooling with zero network reloading between tabs.
+- **Android Quick Settings Media Mini-Player**: Full `MediaSessionCompat` integration with `androidx.media.app.NotificationCompat.MediaStyle` rendering the native system media card with waveform seekbar and playback controls in notifications and lock screen.
+- **Gemini Context-Aware PiP**: Smart cognitive decision engine that intelligently activates PiP only for video streaming (YouTube, video streams) while suppressing PiP for social feeds (Instagram, Reddit, LinkedIn, Facebook) to prevent screen obstruction.
+- **Anti-App Redirection (Sandboxed Web Fidelity)**: Intercepts `intent://` and deep links (`instagram://`, `spotify://`, `twitter://`, `vnd.youtube:`) to prevent external installed apps from hijacking the session, keeping everything inside EVA.
+- **Google Device Account Picker**: Native Android system account chooser for seamless one-tap Google login without manual text entry.
+- **Comprehensive Device Permissions**: Storage/Media uploads, Microphone for voice search, Camera, and Notifications.
 - **Micro Gesture Dock**: A sleek floating home bar enabling horizontal swipe gesture cycling between services and tap-to-expand taskbar.
-- **Uninterrupted Background Playback**: Foreground media service with persistent notification keeping Spotify, YouTube Music, and podcast streams alive when the screen turns off.
-- **Picture-in-Picture (PiP)**: Native Android PiP mode when multitasking.
-- **Ambient AI Co-Pilot**: Integrated Gemini-powered assistant to summarize pages, draft posts, and analyze trends.
 - **Zero Tracking Sandbox**: Strict security policies preventing cross-site local data extraction.
 
 ---

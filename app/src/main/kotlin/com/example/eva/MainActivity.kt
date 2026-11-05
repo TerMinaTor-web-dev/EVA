@@ -1,12 +1,8 @@
 package com.example.eva
 
-import android.Manifest
-import android.app.PictureInPictureParams
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -18,8 +14,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.core.content.ContextCompat
+import com.example.eva.data.AppServiceCatalog
+import com.example.eva.security.EvaPermissionManager
 import com.example.eva.security.SecurityGuard
+import com.example.eva.service.EvaPipDecisionEngine
+import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EVATheme
 
 class MainActivity : ComponentActivity() {
@@ -27,9 +26,9 @@ class MainActivity : ComponentActivity() {
     private var isInPipMode by mutableStateOf(false)
     private var securityStatus by mutableStateOf<SecurityGuard.SecurityStatus?>(null)
 
-    private val requestNotificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
-            // Notification permission granted or denied for background playback controls
+    private val multiPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+            // Permissions granted / updated by user
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,8 +41,10 @@ class MainActivity : ComponentActivity() {
         // 2. Perform Environment Integrity Audit
         securityStatus = SecurityGuard.performSecurityAudit(this)
 
-        // 3. Request Notification Permission for Android 13+ (Required for Foreground Audio Service)
-        requestNotificationPermissionIfNeeded()
+        // 3. Proactively audit core permissions on first launch
+        if (!EvaPermissionManager.hasCorePermissions(this)) {
+            multiPermissionLauncher.launch(EvaPermissionManager.getRequiredPermissions())
+        }
 
         setContent {
             EVATheme {
@@ -57,30 +58,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val hasPermission = ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (!hasPermission) {
-                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-
-    // Native Picture-in-Picture Trigger when user presses Home or switches apps
+    /**
+     * Context-Aware Picture-in-Picture Trigger powered by EvaPipDecisionEngine.
+     * Selectively enters PiP only when video media is active (YouTube, video streams).
+     * Non-video feeds (Instagram, Reddit, LinkedIn, Facebook) and pure audio apps (Spotify)
+     * are suppressed from PiP to prevent UI obstruction.
+     */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try {
-                val params = PictureInPictureParams.Builder()
-                    .setAspectRatio(Rational(16, 9))
-                    .build()
-                enterPictureInPictureMode(params)
-            } catch (_: Exception) {
-                // Device does not support PiP or ratio was rejected
+            val currentService = AppServiceCatalog.getServiceById(EvaWebViewPool.activeServiceId)
+            val decision = EvaPipDecisionEngine.evaluate(
+                activeService = currentService,
+                hasActiveVideo = false
+            )
+
+            if (decision.allowPip) {
+                try {
+                    enterPictureInPictureMode(decision.buildParams())
+                } catch (_: Exception) {
+                    // Device rejected PiP params or ratio
+                }
             }
         }
     }

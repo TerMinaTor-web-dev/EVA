@@ -91,6 +91,7 @@ dependencies {
   implementation(libs.androidx.compose.material3)
   implementation("androidx.compose.material:material-icons-extended")
   implementation("androidx.webkit:webkit:1.12.1")
+  implementation("androidx.media:media:1.7.0")
 
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
