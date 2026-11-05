@@ -27,3 +27,5 @@
 # 5. Security & Service Keep Rules
 -keep class com.example.eva.service.EvaMediaPlaybackService { *; }
 -keep class com.example.eva.ui.components.EvaWebViewPool { *; }
+-keep class com.example.eva.security.** { *; }
+-keep class com.example.eva.BuildConfig { *; }

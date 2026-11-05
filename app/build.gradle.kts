@@ -7,6 +7,7 @@ plugins {
 android {
   namespace = "com.example.eva"
   compileSdk = 36
+
   defaultConfig {
     applicationId = "com.example.eva"
     minSdk = 26
@@ -15,20 +16,47 @@ android {
     versionName = "1.0"
   }
 
-  buildTypes {
-    release {
-      isMinifyEnabled = false
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+  signingConfigs {
+    create("release") {
+      val keystoreFile = rootProject.file("keystore/eva-release.keystore")
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = "evasuperapp2026"
+        keyAlias = "eva"
+        keyPassword = "evasuperapp2026"
+        enableV1Signing = true
+        enableV2Signing = true
+      }
     }
   }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = true
+      isShrinkResources = true
+      val keystoreFile = rootProject.file("keystore/eva-release.keystore")
+      if (keystoreFile.exists()) {
+        signingConfig = signingConfigs.getByName("release")
+      }
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+    debug {
+      val keystoreFile = rootProject.file("keystore/eva-release.keystore")
+      if (keystoreFile.exists()) {
+        signingConfig = signingConfigs.getByName("release")
+      }
+    }
+  }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
+
   buildFeatures {
     compose = true
+    buildConfig = true
     aidl = false
-    buildConfig = false
     shaders = false
   }
 
@@ -63,8 +91,10 @@ dependencies {
   implementation(libs.androidx.compose.material3)
   implementation("androidx.compose.material:material-icons-extended")
   implementation("androidx.webkit:webkit:1.12.1")
+
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
+
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
