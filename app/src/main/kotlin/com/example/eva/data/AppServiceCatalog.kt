@@ -17,16 +17,6 @@ object AppServiceCatalog {
             description = "Photos, Reels & Direct Messages"
         ),
         AppService(
-            id = "whatsapp",
-            name = "WhatsApp",
-            url = "https://web.whatsapp.com",
-            category = "Messaging",
-            primaryColor = Color(0xFF25D366),
-            secondaryColor = Color(0xFF128C7E),
-            isDesktopUserAgent = true, // WhatsApp requires desktop UA to load Web interface
-            description = "Encrypted Chats & Groups"
-        ),
-        AppService(
             id = "youtube",
             name = "YouTube",
             url = "https://m.youtube.com",

@@ -2,7 +2,6 @@ package com.example.eva.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,6 +61,8 @@ import kotlinx.coroutines.delay
 fun FloatingPillDock(
     currentService: AppService,
     onSelectService: (AppService) -> Unit,
+    onSwipeRecentBackward: () -> String?,
+    onSwipeRecentForward: () -> String?,
     onNavigateHome: () -> Unit,
     onReloadCurrent: () -> Unit,
     onOpenAiAssistant: () -> Unit,
@@ -82,35 +81,19 @@ fun FloatingPillDock(
     }
 
     val services = AppServiceCatalog.services
-    val currentIndex = services.indexOfFirst { it.id == currentService.id }
-
-    fun switchNext() {
-        val nextIndex = (currentIndex + 1) % services.size
-        val nextService = services[nextIndex]
-        onSelectService(nextService)
-        gestureHudMessage = nextService.name
-    }
-
-    fun switchPrev() {
-        val prevIndex = if (currentIndex <= 0) services.size - 1 else currentIndex - 1
-        val prevService = services[prevIndex]
-        onSelectService(prevService)
-        gestureHudMessage = prevService.name
-    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(bottom = 6.dp),
-        contentAlignment = Alignment.BottomCenter
+            .padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
         // Floating Gesture Switch HUD
         AnimatedVisibility(
             visible = gestureHudMessage != null,
             enter = fadeIn() + scaleIn(spring(stiffness = Spring.StiffnessHigh)),
             exit = fadeOut() + scaleOut(),
-            modifier = Modifier.padding(bottom = 44.dp)
+            modifier = Modifier.padding(bottom = 36.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -125,7 +108,7 @@ fun FloatingPillDock(
                 ) {
                     AppBrandIcon(serviceId = currentService.id, modifier = Modifier.size(20.dp))
                     Text(
-                        text = "Switched to ${gestureHudMessage}",
+                        text = gestureHudMessage ?: "",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -134,7 +117,7 @@ fun FloatingPillDock(
             }
         }
 
-        // 1. Collapsed State: Micro Pill Bar with Gestures (Swipe to switch, Tap for Taskbar)
+        // 1. Collapsed State: Micro Pill Bar with Chronological Gestures
         AnimatedVisibility(
             visible = !isExpanded,
             enter = fadeIn() + scaleIn(spring(dampingRatio = Spring.DampingRatioLowBouncy)),
@@ -153,10 +136,14 @@ fun FloatingPillDock(
                         detectDragGestures(
                             onDragStart = { dragAccumulator = 0f },
                             onDragEnd = {
-                                if (dragAccumulator > 35f) {
-                                    switchPrev()
-                                } else if (dragAccumulator < -35f) {
-                                    switchNext()
+                                if (dragAccumulator > 30f) {
+                                    // Swipe Right -> Chronological Recent Apps
+                                    val switched = onSwipeRecentBackward()
+                                    gestureHudMessage = switched?.let { "Recent: $it" } ?: "No older recent apps"
+                                } else if (dragAccumulator < -30f) {
+                                    // Swipe Left -> Reverse Forward History
+                                    val switched = onSwipeRecentForward()
+                                    gestureHudMessage = switched?.let { "Forward: $it" } ?: "Already on latest app"
                                 }
                                 dragAccumulator = 0f
                             },
@@ -165,13 +152,13 @@ fun FloatingPillDock(
                             }
                         )
                     }
-                    .padding(horizontal = 24.dp, vertical = 6.dp)
+                    .padding(horizontal = 24.dp, vertical = 4.dp)
             ) {
-                // Sleek, minimal home pill bar (width: 54dp, height: 5.5dp)
+                // Sleek, minimal home pill bar (width: 50dp, height: 5dp)
                 Box(
                     modifier = Modifier
-                        .size(width = 54.dp, height = 5.5.dp)
-                        .shadow(10.dp, RoundedCornerShape(3.dp), spotColor = currentService.primaryColor)
+                        .size(width = 50.dp, height = 5.dp)
+                        .shadow(8.dp, RoundedCornerShape(3.dp), spotColor = currentService.primaryColor)
                         .clip(RoundedCornerShape(3.dp))
                         .background(
                             Brush.horizontalGradient(
@@ -184,15 +171,15 @@ fun FloatingPillDock(
                         )
                 )
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 // Subtle swipe hint label
                 Text(
-                    text = "◂ Swipe to switch • Tap for dock ▸",
+                    text = "◂ Swipe recent • Tap for dock ▸",
                     color = Color.White.copy(alpha = 0.45f),
-                    fontSize = 9.sp,
+                    fontSize = 8.5.sp,
                     fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.3.sp
+                    letterSpacing = 0.2.sp
                 )
             }
         }
@@ -260,9 +247,9 @@ fun FloatingPillDock(
                     // Close Button
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f))
+                            .background(Color.White.copy(alpha = 0.12f))
                             .clickable { isExpanded = false },
                         contentAlignment = Alignment.Center
                     ) {
@@ -270,156 +257,150 @@ fun FloatingPillDock(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close Dock",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Horizontal App Carousel Dock
+                // Scrollable Service Icons Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Home Hub Action
-                    DockActionButton(
-                        label = "Hub",
-                        icon = Icons.Default.Home,
-                        color = EvaColors.NeonCyan,
-                        onClick = {
-                            isExpanded = false
-                            onNavigateHome()
-                        }
-                    )
-
-                    // Reload Page Action
-                    DockActionButton(
-                        label = "Reload",
-                        icon = Icons.Default.Refresh,
-                        color = Color.White.copy(alpha = 0.8f),
-                        onClick = {
-                            isExpanded = false
-                            onReloadCurrent()
-                        }
-                    )
-
-                    // EVA AI Assistant Action
-                    DockActionButton(
-                        label = "AI",
-                        icon = Icons.Default.AutoAwesome,
-                        color = EvaColors.NeonPurple,
-                        onClick = {
-                            isExpanded = false
-                            onOpenAiAssistant()
-                        }
-                    )
-
-                    // App Services with Authentic Logos
                     services.forEach { service ->
                         val isSelected = service.id == currentService.id
-                        DockAppItem(
-                            service = service,
-                            isSelected = isSelected,
-                            onClick = {
-                                isExpanded = false
-                                if (!isSelected) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    if (isSelected) EvaColors.NeonCyan.copy(alpha = 0.2f)
+                                    else Color.White.copy(alpha = 0.05f)
+                                )
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 0.5.dp,
+                                    color = if (isSelected) EvaColors.NeonCyan else Color.White.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .clickable {
                                     onSelectService(service)
+                                    isExpanded = false
                                 }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            AppBrandIcon(serviceId = service.id, modifier = Modifier.size(30.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = service.name,
+                                color = if (isSelected) EvaColors.NeonCyan else Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Dock Controls Footer (Home, Refresh, AI Assistant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Home Hub Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .clickable {
+                                isExpanded = false
+                                onNavigateHome()
                             }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Home",
+                            tint = EvaColors.NeonCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Hub",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Reload Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .clickable {
+                                isExpanded = false
+                                onReloadCurrent()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Reload",
+                            tint = EvaColors.NeonPurple,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Reload",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // EVA AI Assistant Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        EvaColors.NeonCyan.copy(alpha = 0.3f),
+                                        EvaColors.NeonPurple.copy(alpha = 0.3f)
+                                    )
+                                )
+                            )
+                            .clickable {
+                                isExpanded = false
+                                onOpenAiAssistant()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "EVA AI",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "EVA AI",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun DockActionButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(color.copy(alpha = 0.18f))
-                .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = color,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = EvaColors.TextPrimary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun DockAppItem(
-    service: AppService,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.08f else 1.0f,
-        label = "dockItemScale"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .scale(scale)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (isSelected) service.primaryColor.copy(alpha = 0.35f)
-                    else EvaColors.GlassSurface
-                )
-                .border(
-                    width = if (isSelected) 1.8.dp else 1.dp,
-                    color = if (isSelected) service.primaryColor else Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            AppBrandIcon(serviceId = service.id, modifier = Modifier.size(24.dp))
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = service.name,
-            color = if (isSelected) EvaColors.NeonCyan else EvaColors.TextSecondary,
-            fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1
-        )
     }
 }

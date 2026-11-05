@@ -1,17 +1,24 @@
 package com.example.eva.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.example.eva.model.AppService
 import com.example.eva.ui.components.EvaAiSheet
 import com.example.eva.ui.components.EvaWebViewPool
@@ -24,48 +31,110 @@ fun AppContainerScreen(
     onNavigateHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Chronological Recent Apps History Stack (LRU)
+    var recentHistory by remember(initialService) { mutableStateOf(listOf(initialService)) }
+    var historyIndex by remember(initialService) { mutableIntStateOf(0) }
+
     var activeService by remember(initialService) { mutableStateOf(initialService) }
     var currentTitle by remember { mutableStateOf(initialService.name) }
     var currentUrl by remember { mutableStateOf(initialService.url) }
     var showAiAssistant by remember { mutableStateOf(false) }
 
-    Box(
+    // Direct app selection from taskbar or omnibar
+    fun selectService(service: AppService) {
+        if (service.id != activeService.id) {
+            val updated = recentHistory.take(historyIndex + 1).toMutableList()
+            updated.add(service)
+            recentHistory = updated
+            historyIndex = updated.lastIndex
+            activeService = service
+            currentTitle = service.name
+            currentUrl = service.url
+        }
+    }
+
+    // Swipe Right -> Backward into Recents (e.g. FB -> Insta -> YouTube)
+    fun swipeRecentBackward(): String? {
+        return if (historyIndex > 0) {
+            historyIndex--
+            val prev = recentHistory[historyIndex]
+            activeService = prev
+            currentTitle = prev.name
+            currentUrl = prev.url
+            prev.name
+        } else {
+            null
+        }
+    }
+
+    // Swipe Left -> Reverse Forward in History (e.g. YouTube -> Insta -> FB)
+    fun swipeRecentForward(): String? {
+        return if (historyIndex < recentHistory.size - 1) {
+            historyIndex++
+            val next = recentHistory[historyIndex]
+            activeService = next
+            currentTitle = next.name
+            currentUrl = next.url
+            next.name
+        } else {
+            null
+        }
+    }
+
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color(0xFF090A10))
             .statusBarsPadding()
     ) {
-        // Multi-Tab In-Memory WebView Pool (Zero reload, zero latency)
-        MultiTabWebViewContainer(
-            activeService = activeService,
-            modifier = Modifier.fillMaxSize(),
-            onPageTitleChanged = { currentTitle = it },
-            onUrlChanged = { currentUrl = it }
-        )
-
-        // Micro Floating Gesture Pill Bar & Expanding Taskbar
-        FloatingPillDock(
-            currentService = activeService,
-            onSelectService = { selectedService ->
-                activeService = selectedService
-                currentTitle = selectedService.name
-                currentUrl = selectedService.url
-            },
-            onNavigateHome = onNavigateHome,
-            onReloadCurrent = {
-                EvaWebViewPool.reloadCurrent(activeService.id)
-            },
-            onOpenAiAssistant = { showAiAssistant = true },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
-        // EVA AI Co-Pilot Bottom Sheet
-        if (showAiAssistant) {
-            EvaAiSheet(
-                currentPageTitle = currentTitle,
-                currentUrl = currentUrl,
-                onDismiss = { showAiAssistant = false }
+        // 1. Phone Ratio Canvas for Active App (100% unobstructed, zero overlay interference)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            MultiTabWebViewContainer(
+                activeService = activeService,
+                modifier = Modifier.fillMaxSize(),
+                onPageTitleChanged = { currentTitle = it },
+                onUrlChanged = { currentUrl = it }
             )
         }
+
+        // 2. Dedicated Non-Overlay Bottom Bar Area for the Gesture Pill Dock
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF0A0C14))
+                .border(
+                    width = 0.5.dp,
+                    color = Color.White.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                )
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            FloatingPillDock(
+                currentService = activeService,
+                onSelectService = ::selectService,
+                onSwipeRecentBackward = ::swipeRecentBackward,
+                onSwipeRecentForward = ::swipeRecentForward,
+                onNavigateHome = onNavigateHome,
+                onReloadCurrent = {
+                    EvaWebViewPool.reloadCurrent(activeService.id)
+                },
+                onOpenAiAssistant = { showAiAssistant = true },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    // EVA AI Co-Pilot Bottom Sheet
+    if (showAiAssistant) {
+        EvaAiSheet(
+            currentPageTitle = currentTitle,
+            currentUrl = currentUrl,
+            onDismiss = { showAiAssistant = false }
+        )
     }
 }
