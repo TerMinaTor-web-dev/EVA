@@ -113,39 +113,86 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
         } catch (e) {}
     }
 
-    // Helper: Extract current track info
+    // Helper: Deep DOM & MediaSession Track Metadata and Album Art Extractor
     function getTrackMetadata() {
         var title = '';
         var artist = '';
         var artwork = '';
 
+        // 1. Check navigator.mediaSession.metadata
         if (navigator.mediaSession && navigator.mediaSession.metadata) {
             title = navigator.mediaSession.metadata.title || '';
             artist = navigator.mediaSession.metadata.artist || '';
-            if (navigator.mediaSession.metadata.artwork && navigator.mediaSession.metadata.artwork.length > 0) {
-                artwork = navigator.mediaSession.metadata.artwork[0].src || '';
+            var arts = navigator.mediaSession.metadata.artwork;
+            if (arts && arts.length > 0) {
+                artwork = arts[arts.length - 1].src || arts[0].src || '';
             }
         }
-        if (!title) {
-            var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title, ytmusic-player-bar .content-info-wrapper .title');
-            if (ytTitle) title = ytTitle.textContent.trim();
+
+        // 2. Check YouTube Music DOM selectors (Player Bar & Layout)
+        if (!title || !artist || !artwork) {
+            var ytBar = document.querySelector('ytmusic-player-bar, .ytmusic-player-bar, ytmusic-app-layout [slot="player-bar"]');
+            if (ytBar) {
+                if (!title) {
+                    var ytTitleEl = ytBar.querySelector('.title, yt-formatted-string.title, .content-info-wrapper .title, .middle-controls .title, [class*="title"]');
+                    if (ytTitleEl) title = ytTitleEl.textContent.trim();
+                }
+                if (!artist) {
+                    var ytArtistEl = ytBar.querySelector('.byline, .subtitle, yt-formatted-string.byline, .content-info-wrapper .byline, [class*="byline"], [class*="subtitle"]');
+                    if (ytArtistEl) artist = ytArtistEl.textContent.trim();
+                }
+                if (!artwork) {
+                    var ytImg = ytBar.querySelector('img.image, img#img, .thumbnail img, [class*="thumbnail"] img, img');
+                    if (ytImg && ytImg.src && ytImg.src.indexOf('data:') !== 0) {
+                        artwork = ytImg.src;
+                    }
+                }
+            }
         }
-        if (!artist) {
-            var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar, ytmusic-player-bar .subtitle, ytmusic-player-bar .byline a');
-            if (ytArtist) artist = ytArtist.textContent.trim();
+
+        // 3. Check Spotify DOM selectors (Now Playing Widget & Footer)
+        if (!title || !artist || !artwork) {
+            var spWidget = document.querySelector('[data-testid="now-playing-widget"], footer[data-testid="now-playing-bar"], footer');
+            if (spWidget) {
+                if (!title) {
+                    var spTitleEl = spWidget.querySelector('[data-testid="context-item-link"], [data-testid="context-item-info-title"] a, [data-testid="track-info-name"]');
+                    if (spTitleEl) title = spTitleEl.textContent.trim();
+                }
+                if (!artist) {
+                    var spArtistEl = spWidget.querySelector('[data-testid="track-info-artists"], [data-testid="context-item-info-subtitles"] a');
+                    if (spArtistEl) artist = spArtistEl.textContent.trim();
+                }
+                if (!artwork) {
+                    var spImg = spWidget.querySelector('[data-testid="cover-art-image"], img');
+                    if (spImg && spImg.src && spImg.src.indexOf('data:') !== 0) {
+                        artwork = spImg.src;
+                    }
+                }
+            }
         }
-        if (!title) {
-            var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"], [data-testid="now-playing-widget"] [data-testid="context-item-info-title"] a');
-            if (spTitle) title = spTitle.textContent.trim();
+
+        // 4. Check YouTube standard DOM selectors
+        if (!title || !artist || !artwork) {
+            if (!title) {
+                var ytMainTitle = document.querySelector('h1.ytd-watch-metadata, .slim-video-metadata-title, h1.title');
+                if (ytMainTitle) title = ytMainTitle.textContent.trim();
+            }
+            if (!artist) {
+                var ytChannel = document.querySelector('#upload-info ytd-channel-name a, .slim-owner-channel-name, #channel-name a');
+                if (ytChannel) artist = ytChannel.textContent.trim();
+            }
+            if (!artwork) {
+                var metaOg = document.querySelector('meta[property="og:image"]');
+                if (metaOg && metaOg.content) {
+                    artwork = metaOg.content;
+                } else {
+                    var linkImg = document.querySelector('link[rel="image_src"]');
+                    if (linkImg && linkImg.href) artwork = linkImg.href;
+                }
+            }
         }
-        if (!artist) {
-            var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"], [data-testid="now-playing-widget"] [data-testid="context-item-info-subtitles"] a');
-            if (spArtist) artist = spArtist.textContent.trim();
-        }
-        if (!title) {
-            var ytMainTitle = document.querySelector('h1.ytd-watch-metadata, .slim-video-metadata-title');
-            if (ytMainTitle) title = ytMainTitle.textContent.trim();
-        }
+
+        // 5. Fallback: Parse document title if title is still missing
         if (!title && document.title) {
             var docT = document.title;
             var suffixes = [' - YouTube Music', ' | Spotify', ' - Spotify', ' - YouTube', ' • Spotify'];
@@ -164,7 +211,33 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
                 title = docT.trim();
             }
         }
+
+        // Upscale Google/YouTube artwork thumbnail URL to high definition (512x512) for lockscreen
+        if (artwork && artwork.indexOf('googleusercontent.com') !== -1) {
+            artwork = artwork.replace(/=w\d+-h\d+/, '=w512-h512').replace(/=s\d+/, '=s512');
+        }
+
         return { title: title, artist: artist, artwork: artwork };
+    }
+
+    var lastSentTitle = '';
+    var lastSentArtist = '';
+    var lastSentArtwork = '';
+
+    function checkAndDispatchTrackInfo(force) {
+        var meta = getTrackMetadata();
+        if (!meta.title && !meta.artist && !meta.artwork) return;
+
+        var changed = (meta.title !== lastSentTitle || meta.artist !== lastSentArtist || meta.artwork !== lastSentArtwork);
+        if (changed || force) {
+            lastSentTitle = meta.title;
+            lastSentArtist = meta.artist;
+            lastSentArtwork = meta.artwork;
+
+            if (window.EvaMediaBridge && meta.title) {
+                window.EvaMediaBridge.onTrackChanged(meta.title, meta.artist, meta.artwork);
+            }
+        }
     }
 
     // 5. Intercept navigator.mediaSession.metadata setter for ZERO-POLLING instant track updates
@@ -178,7 +251,7 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
                         if (meta && window.EvaMediaBridge) {
                             var title = meta.title || '';
                             var artist = meta.artist || '';
-                            var artwork = (meta.artwork && meta.artwork.length > 0) ? meta.artwork[0].src : '';
+                            var artwork = (meta.artwork && meta.artwork.length > 0) ? (meta.artwork[meta.artwork.length - 1].src || meta.artwork[0].src) : '';
                             window.EvaMediaBridge.onTrackChanged(title, artist, artwork);
                         }
                     },
@@ -197,6 +270,7 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
             var isAudible = (!el.muted && el.volume > 0);
             if (!isAudible) return; // Muted videos (e.g. silent Instagram/Reddit feeds) do not pause music!
 
+            window.__evaExplicitUserPause = false;
             var meta = getTrackMetadata();
             var dur = (el.duration && !isNaN(el.duration) && isFinite(el.duration)) ? el.duration : 0;
             var pos = (el.currentTime && !isNaN(el.currentTime)) ? el.currentTime : 0;
@@ -211,6 +285,7 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
                     pos
                 );
             }
+            checkAndDispatchTrackInfo(true);
         }
 
         function notifyPause() {
@@ -228,8 +303,26 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
 
         el.addEventListener('play', notifyPlay);
         el.addEventListener('playing', notifyPlay);
-        el.addEventListener('pause', notifyPause);
-        el.addEventListener('ended', notifyPause);
+
+        // CRITICAL FIX: Only forward pause to Android if user EXPLICITLY paused!
+        // When Chromium or Android minimizes the app, it fires pause on the video element.
+        // We MUST NOT notify the service of pause, and we MUST immediately auto-resume play!
+        el.addEventListener('pause', function() {
+            if (window.__evaExplicitUserPause === true) {
+                notifyPause();
+            } else {
+                // Involuntary background pause by Chromium! Auto-resume immediately!
+                setTimeout(function() {
+                    if (window.__evaExplicitUserPause !== true) {
+                        el.play().catch(function(){});
+                    }
+                }, 40);
+            }
+        });
+
+        el.addEventListener('ended', function() {
+            notifyPause();
+        });
 
         el.addEventListener('volumechange', function() {
             if (!el.muted && el.volume > 0 && !el.paused) {
@@ -239,17 +332,18 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
             }
         });
 
-        // Throttled timeupdate for seekbar animation (fires at most once every 3.5s)
+        // Throttled timeupdate for seekbar animation & real-time metadata sync
         var lastTimeReport = 0;
         el.addEventListener('timeupdate', function() {
             var now = Date.now();
-            if (now - lastTimeReport > 3500 && !el.paused && !el.muted && el.volume > 0) {
+            if (now - lastTimeReport > 2500 && !el.paused && !el.muted && el.volume > 0) {
                 lastTimeReport = now;
                 var dur = (el.duration && !isNaN(el.duration) && isFinite(el.duration)) ? el.duration : 0;
                 var pos = (el.currentTime && !isNaN(el.currentTime)) ? el.currentTime : 0;
                 if (window.EvaMediaBridge) {
                     window.EvaMediaBridge.onPlaybackPosition(window.__evaServiceId, dur, pos);
                 }
+                checkAndDispatchTrackInfo(false);
             }
         });
     }
@@ -282,6 +376,22 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {}
+
+    // Lightweight 1000ms Keep-Alive Watchdog & Metadata Poller
+    setInterval(function() {
+        if (window.__evaExplicitUserPause !== true) {
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v && v.currentTime > 0) {
+                if (v.paused) {
+                    // Auto-resume background stream involuntarily stopped by Chromium
+                    v.play().catch(function(){});
+                } else {
+                    // Keep track title, artist, and album artwork synced in real time
+                    checkAndDispatchTrackInfo(false);
+                }
+            }
+        }
+    }, 1000);
 })();
 """
 
@@ -291,6 +401,7 @@ class EvaMediaBridge(
     private val defaultServiceName: String
 ) {
     private var lastTrack = ""
+    private var lastArtwork = ""
 
     @JavascriptInterface
     fun onMediaPlayStarted(
@@ -355,14 +466,16 @@ class EvaMediaBridge(
     fun onTrackChanged(title: String, artist: String, artworkUrl: String) {
         val cleanTitle = title.trim()
         val cleanArtist = if (artist.isNotBlank()) artist.trim() else defaultServiceName
-        if (cleanTitle.isNotBlank() && cleanTitle != lastTrack) {
+        if (cleanTitle.isNotBlank() && (cleanTitle != lastTrack || artworkUrl != lastArtwork)) {
             lastTrack = cleanTitle
-            EvaMediaPlaybackService.updateTrack(
+            lastArtwork = artworkUrl
+            EvaMediaCoordinator.onTrackChanged(
                 context = context,
                 serviceId = serviceId,
                 serviceName = defaultServiceName,
                 artist = cleanArtist,
-                title = cleanTitle
+                title = cleanTitle,
+                artworkUrl = artworkUrl
             )
         }
     }

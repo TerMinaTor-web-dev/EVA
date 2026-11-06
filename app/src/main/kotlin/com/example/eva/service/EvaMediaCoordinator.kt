@@ -29,6 +29,9 @@ object EvaMediaCoordinator {
     var pausedBackgroundServiceId: String? = null
         private set
 
+    // Explicit track title from DOM/MediaSession (prevents broad webpage title from overwriting it)
+    private var currentExplicitTrackTitle: String? = null
+
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -52,6 +55,9 @@ object EvaMediaCoordinator {
             }
 
             activeAudioServiceId = serviceId
+            if (title.isNotBlank() && title != "Media Playing") {
+                currentExplicitTrackTitle = title
+            }
 
             val service = AppServiceCatalog.getServiceById(serviceId)
             val serviceName = service?.name ?: "EVA Media"
@@ -73,6 +79,32 @@ object EvaMediaCoordinator {
     }
 
     /**
+     * Called by EvaMediaBridge when real-time track poller or mediaSession detects new track/artwork.
+     */
+    fun onTrackChanged(
+        context: Context,
+        serviceId: String,
+        serviceName: String,
+        artist: String,
+        title: String,
+        artworkUrl: String
+    ) {
+        currentExplicitTrackTitle = title
+        activeAudioServiceId = serviceId
+
+        mainHandler.post {
+            EvaMediaPlaybackService.updateTrack(
+                context = context,
+                serviceId = serviceId,
+                serviceName = serviceName,
+                artist = artist,
+                title = title,
+                artworkUrl = artworkUrl
+            )
+        }
+    }
+
+    /**
      * Called when a media element in any WebView pauses or finishes playing.
      */
     fun onMediaPlayPaused(
@@ -83,6 +115,7 @@ object EvaMediaCoordinator {
     ) {
         mainHandler.post {
             if (activeAudioServiceId == serviceId) {
+                currentExplicitTrackTitle = null
                 val toResume = pausedBackgroundServiceId
                 if (toResume != null && toResume != serviceId) {
                     // App B paused/ended! Auto-resume the previous background music (App A)!
@@ -120,6 +153,12 @@ object EvaMediaCoordinator {
         serviceId: String,
         rawTitle: String
     ) {
+        // If an explicit track title (e.g. "12 Saal") is already active for this service,
+        // ignore broader webpage/album title changes
+        if (activeAudioServiceId == serviceId && !currentExplicitTrackTitle.isNullOrBlank()) {
+            return
+        }
+
         val clean = rawTitle.trim()
         if (clean.isBlank()) return
 
@@ -197,6 +236,7 @@ object EvaMediaCoordinator {
      * Called when user explicitly taps Pause on the Notification Mini-Player or app controls.
      */
     fun onUserExplicitPause(context: Context) {
+        currentExplicitTrackTitle = null
         pausedBackgroundServiceId = null
         activeAudioServiceId = null
         EvaMediaPlaybackService.setPlayingState(context, false)

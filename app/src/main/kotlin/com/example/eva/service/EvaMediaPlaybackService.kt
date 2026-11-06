@@ -135,7 +135,8 @@ class EvaMediaPlaybackService : Service() {
             serviceId: String,
             serviceName: String,
             artist: String,
-            title: String
+            title: String,
+            artworkUrl: String = ""
         ) {
             activeServiceId = serviceId
             val intent = Intent(context, EvaMediaPlaybackService::class.java).apply {
@@ -144,12 +145,13 @@ class EvaMediaPlaybackService : Service() {
                 putExtra(EXTRA_SERVICE_NAME, serviceName)
                 putExtra(EXTRA_ARTIST, artist)
                 putExtra(EXTRA_TITLE, title)
+                putExtra(EXTRA_ARTWORK_URL, artworkUrl)
             }
             startServiceSafely(context, intent)
         }
 
         fun updateTrack(context: Context, serviceId: String, artist: String, title: String) {
-            updateTrack(context, serviceId, "EVA Media", artist, title)
+            updateTrack(context, serviceId, "EVA Media", artist, title, "")
         }
 
         fun stopPlayback(context: Context) {
@@ -294,9 +296,10 @@ class EvaMediaPlaybackService : Service() {
         val metadataBuilder = MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "EVA • Super-App")
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, serviceName)
             .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, artist)
+            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, serviceName)
 
         if (durationMs > 0) {
             metadataBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs)
@@ -306,6 +309,7 @@ class EvaMediaPlaybackService : Service() {
         if (art != null) {
             metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, art)
             metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, art)
+            metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, art)
         }
 
         mediaSession?.setMetadata(metadataBuilder.build())
@@ -402,6 +406,7 @@ class EvaMediaPlaybackService : Service() {
                 val serviceName = intent.getStringExtra(EXTRA_SERVICE_NAME) ?: currentServiceName
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: currentArtist
+                val artworkUrl = intent.getStringExtra(EXTRA_ARTWORK_URL) ?: ""
                 val serviceId = intent.getStringExtra(EXTRA_SERVICE_ID) ?: activeServiceId
                 activeServiceId = serviceId
 
@@ -411,6 +416,12 @@ class EvaMediaPlaybackService : Service() {
                 isPlaying = true
 
                 acquireLocks()
+
+                if (artworkUrl.isNotBlank() && artworkUrl != currentArtworkUrl) {
+                    currentArtworkUrl = artworkUrl
+                    downloadArtworkAsync(artworkUrl)
+                }
+
                 updateMetadata(serviceName, title, artist, currentDurationMs, currentArtworkBitmap)
                 updatePlaybackState(PlaybackStateCompat.STATE_PLAYING, currentPositionMs, currentDurationMs)
                 refreshNotification()
@@ -454,13 +465,16 @@ class EvaMediaPlaybackService : Service() {
                 val connection = url.openConnection()
                 connection.connectTimeout = 4000
                 connection.readTimeout = 4000
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile)")
                 val stream = connection.getInputStream()
                 val bitmap = BitmapFactory.decodeStream(stream)
                 stream.close()
                 if (bitmap != null) {
                     currentArtworkBitmap = bitmap
-                    updateMetadata(currentServiceName, currentTitle, currentArtist, currentDurationMs, bitmap)
-                    refreshNotification()
+                    serviceScope.launch(Dispatchers.Main) {
+                        updateMetadata(currentServiceName, currentTitle, currentArtist, currentDurationMs, bitmap)
+                        refreshNotification()
+                    }
                 }
             } catch (_: Exception) {}
         }
