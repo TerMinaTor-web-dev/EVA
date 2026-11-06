@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.eva.model.AppService
+import com.example.eva.service.EvaPipDecisionEngine
 import com.example.eva.ui.components.EvaAiSheet
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.components.FloatingPillDock
@@ -97,7 +98,21 @@ fun AppContainerScreen(
         }
     }
 
-    if (customFullscreenView != null) {
+    if (EvaPipDecisionEngine.isInPipMode) {
+        // Pure Unobstructed PiP Video View: No bars, no dock, 100% video surface
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            MultiTabWebViewContainer(
+                activeService = activeService,
+                modifier = Modifier.fillMaxSize(),
+                onPageTitleChanged = { currentTitle = it },
+                onUrlChanged = { currentUrl = it }
+            )
+        }
+    } else if (customFullscreenView != null) {
         // Fullscreen Custom View (100% immersive video surface)
         Box(
             modifier = Modifier

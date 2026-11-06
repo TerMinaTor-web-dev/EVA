@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.5_Release.apk",
-  "changelog": "Fix background audio pausing on minimize, restore album art thumbnail & real-time track polling for YouTube Music, Spotify & YouTube."
+  "versionCode": 7,
+  "versionName": "1.6",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.6_Release.apk",
+  "changelog": "In-app touch-aware play/pause, media notification forward/backward skip, unobstructed Picture-in-Picture video mode & 120 FPS high-refresh rate support."
 }

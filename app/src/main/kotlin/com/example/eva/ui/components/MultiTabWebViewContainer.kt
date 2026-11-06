@@ -69,11 +69,33 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
     window.__evaExplicitUserPause = false;
     window.__evaServiceId = '%SERVICE_ID%';
 
-    // 1. Intercept HTMLMediaElement.prototype.pause: Block Chromium background pauses
+    // 0. User Screen Interaction Tracker: Distinguishes physical user clicks/taps from background suspensions
+    var lastUserInteractionTime = 0;
+    ['touchstart', 'touchend', 'click', 'pointerdown', 'mousedown'].forEach(function(evt) {
+        document.addEventListener(evt, function() {
+            lastUserInteractionTime = Date.now();
+        }, { capture: true, passive: true });
+    });
+
+    // 1. Intercept MediaSession action handlers (YouTube, Spotify, SoundCloud)
+    window.__evaMediaSessionActions = {};
+    if (navigator.mediaSession && navigator.mediaSession.setActionHandler) {
+        var origSetActionHandler = navigator.mediaSession.setActionHandler;
+        navigator.mediaSession.setActionHandler = function(action, handler) {
+            window.__evaMediaSessionActions[action] = handler;
+            try {
+                return origSetActionHandler.apply(this, arguments);
+            } catch(e) {}
+        };
+    }
+
+    // 2. Intercept HTMLMediaElement.prototype.pause: Allow in-app pauses while blocking background pauses
     try {
         var originalPause = HTMLMediaElement.prototype.pause;
         HTMLMediaElement.prototype.pause = function() {
-            if (window.__evaExplicitUserPause === true) {
+            var isRecentUserGesture = (Date.now() - lastUserInteractionTime < 1200);
+            if (window.__evaExplicitUserPause === true || isRecentUserGesture) {
+                window.__evaExplicitUserPause = true;
                 return originalPause.apply(this, arguments);
             }
             var media = this;
@@ -301,14 +323,21 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
             }
         }
 
-        el.addEventListener('play', notifyPlay);
-        el.addEventListener('playing', notifyPlay);
+        el.addEventListener('play', function() {
+            window.__evaExplicitUserPause = false;
+            notifyPlay();
+        });
+        el.addEventListener('playing', function() {
+            window.__evaExplicitUserPause = false;
+            notifyPlay();
+        });
 
-        // CRITICAL FIX: Only forward pause to Android if user EXPLICITLY paused!
-        // When Chromium or Android minimizes the app, it fires pause on the video element.
-        // We MUST NOT notify the service of pause, and we MUST immediately auto-resume play!
+        // CRITICAL FIX: Only forward pause to Android if user EXPLICITLY paused or physically tapped pause!
         el.addEventListener('pause', function() {
-            if (window.__evaExplicitUserPause === true) {
+            var isRecentUserGesture = (Date.now() - lastUserInteractionTime < 1200);
+            if (window.__evaExplicitUserPause === true || isRecentUserGesture) {
+                // User intentionally tapped pause in-app or via notification!
+                window.__evaExplicitUserPause = true;
                 notifyPause();
             } else {
                 // Involuntary background pause by Chromium! Auto-resume immediately!
@@ -740,15 +769,18 @@ object EvaWebViewPool {
      * Executes Play/Pause directly on the Android Main Looper without waiting for view attachment.
      */
     fun setPlayPauseState(serviceId: String?, play: Boolean) {
-        val targetId = serviceId ?: activeServiceId
+        val targetId = serviceId ?: EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
         val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
         val script = if (play) {
             """
             (function() {
                 window.__evaExplicitUserPause = false;
+                if (window.__evaMediaSessionActions && typeof window.__evaMediaSessionActions['play'] === 'function') {
+                    try { window.__evaMediaSessionActions['play'](); return true; } catch(e) {}
+                }
                 var v = document.querySelector('video') || document.querySelector('audio');
-                if (v) { v.play().catch(function(){}); return true; }
-                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
+                if (v && v.paused) { v.play().catch(function(){}); return true; }
+                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button, button[aria-label*="Play"], [title*="Play"]');
                 if (btn) { btn.click(); return true; }
                 return false;
             })();
@@ -757,9 +789,12 @@ object EvaWebViewPool {
             """
             (function() {
                 window.__evaExplicitUserPause = true;
+                if (window.__evaMediaSessionActions && typeof window.__evaMediaSessionActions['pause'] === 'function') {
+                    try { window.__evaMediaSessionActions['pause'](); return true; } catch(e) {}
+                }
                 var v = document.querySelector('video') || document.querySelector('audio');
-                if (v) { v.pause(); return true; }
-                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
+                if (v && !v.paused) { v.pause(); return true; }
+                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button, button[aria-label*="Pause"], [title*="Pause"]');
                 if (btn) { btn.click(); return true; }
                 return false;
             })();
@@ -774,7 +809,7 @@ object EvaWebViewPool {
     }
 
     fun togglePlayPause(serviceId: String?) {
-        val targetId = serviceId ?: activeServiceId
+        val targetId = serviceId ?: EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
         val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
         val script = """
         (function() {
@@ -803,11 +838,14 @@ object EvaWebViewPool {
     }
 
     fun seekTo(serviceId: String?, positionMs: Long) {
-        val targetId = serviceId ?: activeServiceId
+        val targetId = serviceId ?: EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
         val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
         val seconds = positionMs / 1000.0
         val script = """
         (function() {
+            if (window.__evaMediaSessionActions && typeof window.__evaMediaSessionActions['seekto'] === 'function') {
+                try { window.__evaMediaSessionActions['seekto']({ seekTime: $seconds }); return; } catch(e) {}
+            }
             var v = document.querySelector('video') || document.querySelector('audio');
             if (v) { v.currentTime = $seconds; }
         })();
@@ -821,13 +859,27 @@ object EvaWebViewPool {
     }
 
     fun skipNext(serviceId: String?) {
-        val targetId = serviceId ?: activeServiceId
+        val targetId = serviceId ?: EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
         val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
         val script = """
         (function() {
             window.__evaExplicitUserPause = false;
-            var nextBtn = document.querySelector('.next-button, ytmusic-player-bar .next-button, button[data-testid="control-button-skip-forward"], .ytp-next-button, button[aria-label="Next"]');
-            if (nextBtn) { nextBtn.click(); }
+            if (window.__evaMediaSessionActions && typeof window.__evaMediaSessionActions['nexttrack'] === 'function') {
+                try { window.__evaMediaSessionActions['nexttrack'](); return true; } catch(e) {}
+            }
+            var nextBtn = document.querySelector(
+                'ytmusic-player-bar .next-button, .next-button, button[data-testid="control-button-skip-forward"], .ytp-next-button, button[aria-label*="Next"], [title*="Next"]'
+            );
+            if (nextBtn) {
+                nextBtn.click();
+                return true;
+            }
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v) {
+                v.currentTime = Math.min((v.duration || Infinity), v.currentTime + 10);
+                return true;
+            }
+            return false;
         })();
         """.trimIndent()
 
@@ -839,13 +891,27 @@ object EvaWebViewPool {
     }
 
     fun skipPrevious(serviceId: String?) {
-        val targetId = serviceId ?: activeServiceId
+        val targetId = serviceId ?: EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
         val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
         val script = """
         (function() {
             window.__evaExplicitUserPause = false;
-            var prevBtn = document.querySelector('.previous-button, ytmusic-player-bar .previous-button, button[data-testid="control-button-skip-back"], .ytp-prev-button, button[aria-label="Previous"]');
-            if (prevBtn) { prevBtn.click(); }
+            if (window.__evaMediaSessionActions && typeof window.__evaMediaSessionActions['previoustrack'] === 'function') {
+                try { window.__evaMediaSessionActions['previoustrack'](); return true; } catch(e) {}
+            }
+            var prevBtn = document.querySelector(
+                'ytmusic-player-bar .previous-button, .previous-button, button[data-testid="control-button-skip-back"], .ytp-prev-button, button[aria-label*="Previous"], [title*="Previous"]'
+            );
+            if (prevBtn) {
+                prevBtn.click();
+                return true;
+            }
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v) {
+                v.currentTime = Math.max(0, v.currentTime - 10);
+                return true;
+            }
+            return false;
         })();
         """.trimIndent()
 

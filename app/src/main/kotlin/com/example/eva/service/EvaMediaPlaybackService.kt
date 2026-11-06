@@ -222,7 +222,8 @@ class EvaMediaPlaybackService : Service() {
                     isPlaying = true
                     acquireLocks()
                     updatePlaybackState(PlaybackStateCompat.STATE_PLAYING, currentPositionMs, currentDurationMs)
-                    EvaWebViewPool.setPlayPauseState(activeServiceId, true)
+                    val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                    EvaWebViewPool.setPlayPauseState(targetServiceId, true)
                     refreshNotification()
                 }
 
@@ -231,23 +232,27 @@ class EvaMediaPlaybackService : Service() {
                     releaseLocks() // THERMAL FIX: Stop holding CPU awake when paused
                     updatePlaybackState(PlaybackStateCompat.STATE_PAUSED, currentPositionMs, currentDurationMs)
                     EvaMediaCoordinator.onUserExplicitPause(this@EvaMediaPlaybackService)
-                    EvaWebViewPool.setPlayPauseState(activeServiceId, false)
+                    val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                    EvaWebViewPool.setPlayPauseState(targetServiceId, false)
                     refreshNotification()
                 }
 
                 override fun onSkipToNext() {
-                    EvaWebViewPool.skipNext(activeServiceId)
+                    val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                    EvaWebViewPool.skipNext(targetServiceId)
                 }
 
                 override fun onSkipToPrevious() {
-                    EvaWebViewPool.skipPrevious(activeServiceId)
+                    val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                    EvaWebViewPool.skipPrevious(targetServiceId)
                 }
 
                 override fun onSeekTo(pos: Long) {
                     currentPositionMs = pos
                     val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
                     updatePlaybackState(state, pos, currentDurationMs)
-                    EvaWebViewPool.seekTo(activeServiceId, pos)
+                    val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                    EvaWebViewPool.seekTo(targetServiceId, pos)
                 }
 
                 override fun onStop() {
@@ -331,16 +336,19 @@ class EvaMediaPlaybackService : Service() {
                     EvaMediaCoordinator.onUserExplicitPause(this)
                 }
                 updatePlaybackState(state, currentPositionMs, currentDurationMs)
-                EvaWebViewPool.setPlayPauseState(activeServiceId, isPlaying)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.setPlayPauseState(targetServiceId, isPlaying)
                 refreshNotification()
                 return START_STICKY
             }
             ACTION_NEXT -> {
-                EvaWebViewPool.skipNext(activeServiceId)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.skipNext(targetServiceId)
                 return START_STICKY
             }
             ACTION_PREVIOUS -> {
-                EvaWebViewPool.skipPrevious(activeServiceId)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.skipPrevious(targetServiceId)
                 return START_STICKY
             }
             ACTION_SET_PLAYING -> {

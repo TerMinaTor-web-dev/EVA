@@ -14,6 +14,8 @@ import com.example.eva.model.AppService
  */
 object EvaPipDecisionEngine {
 
+    var isInPipMode: Boolean = false
+
     data class PipDecision(
         val allowPip: Boolean,
         val reason: String,
@@ -59,7 +61,7 @@ object EvaPipDecisionEngine {
         }
 
         // Rule 2: Video Services (YouTube, Twitch, Video streams)
-        // PiP is ONLY allowed when an active hardware video or fullscreen view is currently engaged
+        // PiP is allowed when an active hardware video, fullscreen view, or active video stream is engaged
         if (activeService.id == "youtube" || activeService.category.equals("Video", ignoreCase = true)) {
             return if (hasActiveVideo) {
                 PipDecision(
@@ -71,7 +73,7 @@ object EvaPipDecisionEngine {
             } else {
                 PipDecision(
                     allowPip = false,
-                    reason = "Gemini Policy: Video service active, but no fullscreen playback engaged. PiP suppressed to prevent blank box."
+                    reason = "Gemini Policy: Video service active, but no active video stream engaged. PiP suppressed to prevent blank box."
                 )
             }
         }

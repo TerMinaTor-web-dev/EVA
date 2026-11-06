@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.eva.data.AppServiceCatalog
 import com.example.eva.security.EvaPermissionManager
 import com.example.eva.security.SecurityGuard
+import com.example.eva.service.EvaMediaCoordinator
 import com.example.eva.service.EvaPipDecisionEngine
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EVATheme
@@ -46,6 +47,21 @@ class MainActivity : ComponentActivity() {
             multiPermissionLauncher.launch(EvaPermissionManager.getRequiredPermissions())
         }
 
+        // 4. Adaptive High Refresh Rate: Unlock up to 120 FPS smoothly based on device hardware support
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.decorView.post {
+                try {
+                    val modes = display?.supportedModes ?: emptyArray()
+                    val maxRefreshMode = modes.maxByOrNull { it.refreshRate }
+                    if (maxRefreshMode != null && maxRefreshMode.refreshRate > 60f) {
+                        val params = window.attributes
+                        params.preferredDisplayModeId = maxRefreshMode.modeId
+                        window.attributes = params
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
         setContent {
             EVATheme {
                 Surface(
@@ -68,9 +84,11 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val currentService = AppServiceCatalog.getServiceById(EvaWebViewPool.activeServiceId)
+            val isPlayingVideo = EvaWebViewPool.isFullscreenVideoActive ||
+                    (EvaMediaCoordinator.activeAudioServiceId == currentService?.id)
             val decision = EvaPipDecisionEngine.evaluate(
                 activeService = currentService,
-                hasActiveVideo = EvaWebViewPool.isFullscreenVideoActive
+                hasActiveVideo = isPlayingVideo
             )
 
             if (decision.allowPip) {
@@ -89,6 +107,7 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
+        EvaPipDecisionEngine.isInPipMode = isInPictureInPictureMode
     }
 
     override fun onPause() {
