@@ -10,6 +10,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -21,6 +23,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -59,17 +62,69 @@ private const val DESKTOP_USER_AGENT =
 private const val CHROME_MOBILE_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36"
 
-// Background Audio Bypass & Metadata Scraping Script
+// Comprehensive Background Audio Keep-Alive & Real-time Metadata Scraping Engine
 private const val BACKGROUND_AUDIO_SCRIPT = """
 (function() {
-    // 1. Bypass YouTube / WebKit background pause
+    if (window.__evaEngineInitialized) return;
+    window.__evaEngineInitialized = true;
+    window.__evaExplicitUserPause = false;
+
+    // 1. Intercept HTMLMediaElement.prototype.pause: Block automatic background pauses
+    try {
+        var originalPause = HTMLMediaElement.prototype.pause;
+        HTMLMediaElement.prototype.pause = function() {
+            if (window.__evaExplicitUserPause === true) {
+                return originalPause.apply(this, arguments);
+            }
+            // If pause is triggered by WebKit/Chromium due to backgrounding, immediately re-engage play
+            var media = this;
+            setTimeout(function() {
+                if (window.__evaExplicitUserPause !== true) {
+                    media.play().catch(function(){});
+                }
+            }, 20);
+            return Promise.resolve();
+        };
+    } catch (e) {}
+
+    // 2. Bypass Page Visibility & Focus API
     try {
         Object.defineProperty(document, 'hidden', { get: function() { return false; }, configurable: true });
         Object.defineProperty(document, 'visibilityState', { get: function() { return 'visible'; }, configurable: true });
-        document.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
+        Object.defineProperty(document, 'webkitVisibilityState', { get: function() { return 'visible'; }, configurable: true });
+        document.hasFocus = function() { return true; };
     } catch (e) {}
 
-    // 2. Real-time Track Title & Artist Observer
+    // 3. Suppress blur and visibility events from reaching YouTube/Spotify pause listeners
+    ['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].forEach(function(evt) {
+        window.addEventListener(evt, function(e) { e.stopImmediatePropagation(); }, true);
+        document.addEventListener(evt, function(e) { e.stopImmediatePropagation(); }, true);
+    });
+
+    // 4. Protect Web AudioContext from background suspension
+    if (window.AudioContext) {
+        try {
+            var origSuspend = AudioContext.prototype.suspend;
+            AudioContext.prototype.suspend = function() {
+                if (window.__evaExplicitUserPause === true) {
+                    return origSuspend.apply(this, arguments);
+                }
+                return Promise.resolve();
+            };
+        } catch (e) {}
+    }
+
+    // 5. Watchdog: Auto-resume active stream if paused unexpectedly
+    setInterval(function() {
+        if (window.__evaExplicitUserPause !== true) {
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v && v.paused && v.currentTime > 0) {
+                v.play().catch(function(){});
+            }
+        }
+    }, 1000);
+
+    // 6. Real-time Track Title & Artist Observer
     function notifyTrackUpdate() {
         try {
             var title = '';
@@ -112,10 +167,7 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
         } catch (e) {}
     }
 
-    if (!window.__evaTrackObserverAttached) {
-        window.__evaTrackObserverAttached = true;
-        setInterval(notifyTrackUpdate, 1500);
-    }
+    setInterval(notifyTrackUpdate, 1500);
 })();
 """
 
@@ -374,14 +426,12 @@ object EvaWebViewPool {
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         url?.let(onUrlChanged)
-                        // Inject background audio keep-alive early
                         view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         cookieManager.flush()
-                        // Ensure background audio keep-alive and track observer are running
                         view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
                     }
                 }
@@ -391,57 +441,105 @@ object EvaWebViewPool {
         }
     }
 
+    /**
+     * Executes Play/Pause directly on the Android Main Looper without waiting for view attachment.
+     */
+    fun setPlayPauseState(serviceId: String?, play: Boolean) {
+        val targetId = serviceId ?: activeServiceId
+        val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
+        val script = if (play) {
+            """
+            (function() {
+                window.__evaExplicitUserPause = false;
+                var v = document.querySelector('video') || document.querySelector('audio');
+                if (v) { v.play().catch(function(){}); return true; }
+                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
+                if (btn) { btn.click(); return true; }
+                return false;
+            })();
+            """.trimIndent()
+        } else {
+            """
+            (function() {
+                window.__evaExplicitUserPause = true;
+                var v = document.querySelector('video') || document.querySelector('audio');
+                if (v) { v.pause(); return true; }
+                var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
+                if (btn) { btn.click(); return true; }
+                return false;
+            })();
+            """.trimIndent()
+        }
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(script, null)
+            } catch (_: Exception) {}
+        }
+    }
+
     fun togglePlayPause(serviceId: String?) {
         val targetId = serviceId ?: activeServiceId
-        val wv = webViews[targetId] ?: webViews.values.firstOrNull()
-        wv?.post {
-            wv.evaluateJavascript(
-                """
-                (function() {
-                    var v = document.querySelector('video, audio');
-                    if (v) {
-                        if (v.paused) { v.play(); } else { v.pause(); }
-                        return !v.paused;
-                    }
-                    var playBtn = document.querySelector('button[data-testid="control-button-playpause"], .ytp-play-button, button[aria-label="Play"], button[aria-label="Pause"], #play-pause-button');
-                    if (playBtn) { playBtn.click(); return true; }
-                    return false;
-                })();
-                """.trimIndent(),
-                null
-            )
+        val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
+        val script = """
+        (function() {
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v) {
+                if (v.paused) {
+                    window.__evaExplicitUserPause = false;
+                    v.play().catch(function(){});
+                } else {
+                    window.__evaExplicitUserPause = true;
+                    v.pause();
+                }
+                return !v.paused;
+            }
+            var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
+            if (btn) { btn.click(); return true; }
+            return false;
+        })();
+        """.trimIndent()
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(script, null)
+            } catch (_: Exception) {}
         }
     }
 
     fun skipNext(serviceId: String?) {
         val targetId = serviceId ?: activeServiceId
-        val wv = webViews[targetId] ?: webViews.values.firstOrNull()
-        wv?.post {
-            wv.evaluateJavascript(
-                """
-                (function() {
-                    var nextBtn = document.querySelector('button[data-testid="control-button-skip-forward"], .ytp-next-button, button[aria-label="Next"], button[aria-label="Next track"], .next-button');
-                    if (nextBtn) { nextBtn.click(); }
-                })();
-                """.trimIndent(),
-                null
-            )
+        val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
+        val script = """
+        (function() {
+            window.__evaExplicitUserPause = false;
+            var nextBtn = document.querySelector('.next-button, ytmusic-player-bar .next-button, button[data-testid="control-button-skip-forward"], .ytp-next-button, button[aria-label="Next"]');
+            if (nextBtn) { nextBtn.click(); }
+        })();
+        """.trimIndent()
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(script, null)
+            } catch (_: Exception) {}
         }
     }
 
     fun skipPrevious(serviceId: String?) {
         val targetId = serviceId ?: activeServiceId
-        val wv = webViews[targetId] ?: webViews.values.firstOrNull()
-        wv?.post {
-            wv.evaluateJavascript(
-                """
-                (function() {
-                    var prevBtn = document.querySelector('button[data-testid="control-button-skip-back"], .ytp-prev-button, button[aria-label="Previous"], button[aria-label="Previous track"], .previous-button');
-                    if (prevBtn) { prevBtn.click(); }
-                })();
-                """.trimIndent(),
-                null
-            )
+        val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
+        val script = """
+        (function() {
+            window.__evaExplicitUserPause = false;
+            var prevBtn = document.querySelector('.previous-button, ytmusic-player-bar .previous-button, button[data-testid="control-button-skip-back"], .ytp-prev-button, button[aria-label="Previous"]');
+            if (prevBtn) { prevBtn.click(); }
+        })();
+        """.trimIndent()
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(script, null)
+            } catch (_: Exception) {}
         }
     }
 
@@ -451,22 +549,28 @@ object EvaWebViewPool {
             callback(false)
             return
         }
-        wv.post {
-            wv.evaluateJavascript(
-                """
-                (function() {
-                    var v = document.querySelector('video');
-                    return (v != null && !v.paused && v.currentTime > 0);
-                })();
-                """.trimIndent()
-            ) { result ->
-                callback(result == "true")
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(
+                    """
+                    (function() {
+                        var v = document.querySelector('video');
+                        return (v != null && !v.paused && v.currentTime > 0);
+                    })();
+                    """.trimIndent()
+                ) { result ->
+                    callback(result == "true")
+                }
+            } catch (_: Exception) {
+                callback(false)
             }
         }
     }
 
     fun reloadCurrent(serviceId: String) {
-        webViews[serviceId]?.reload()
+        Handler(Looper.getMainLooper()).post {
+            webViews[serviceId]?.reload()
+        }
     }
 
     fun canGoBack(serviceId: String): Boolean {
@@ -474,12 +578,39 @@ object EvaWebViewPool {
     }
 
     fun goBack(serviceId: String) {
-        webViews[serviceId]?.goBack()
+        Handler(Looper.getMainLooper()).post {
+            webViews[serviceId]?.goBack()
+        }
+    }
+
+    /**
+     * GDPR & Data Protection: Complete Sandbox Wipe of all cookies, cache, and WebStorage.
+     */
+    fun clearAllDataAndCookies(context: Context) {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                // Clear all webviews
+                webViews.values.forEach { it.destroy() }
+                webViews.clear()
+
+                // Clear all cookies
+                val cookieManager = CookieManager.getInstance()
+                cookieManager.removeAllCookies(null)
+                cookieManager.flush()
+
+                // Clear web storage (localStorage, sessionStorage, IndexedDB)
+                WebStorage.getInstance().deleteAllData()
+
+                Toast.makeText(context, "All browsing data & cache erased securely.", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {}
+        }
     }
 
     fun clearAll() {
-        webViews.values.forEach { it.destroy() }
-        webViews.clear()
+        Handler(Looper.getMainLooper()).post {
+            webViews.values.forEach { it.destroy() }
+            webViews.clear()
+        }
     }
 }
 

@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -24,8 +25,10 @@ import com.example.eva.ui.components.EvaWebViewPool
  * Enterprise Background Audio & Video Streaming Engine.
  * Integrates natively with Android MediaSessionCompat and androidx.media NotificationCompat.MediaStyle.
  * 
- * Renders the official Android Quick-Settings System Media Card (Mini-Player) with
- * playback controls, waveform seekbar, Bluetooth headphone keys, and lock-screen widget.
+ * Features:
+ * - Dual WakeLock (CPU) + WifiLock (High Performance Socket) to prevent Samsung One UI socket throttling.
+ * - Guaranteed background streaming without pausing when screen locks or app is minimized.
+ * - Native Android Quick-Settings System Media Card with play/pause/prev/next controls and seekbar.
  */
 class EvaMediaPlaybackService : Service() {
 
@@ -92,6 +95,7 @@ class EvaMediaPlaybackService : Service() {
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private var mediaSession: MediaSessionCompat? = null
     private var currentTitle: String = "EVA Player Active"
     private var currentServiceName: String = "Background Streaming"
@@ -101,13 +105,24 @@ class EvaMediaPlaybackService : Service() {
         super.onCreate()
         createNotificationChannel()
 
+        // 1. Partial WakeLock: Keep CPU alive when screen is locked
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
             "EVA::BackgroundAudioWakeLock"
         )
 
-        // Initialize Native Android MediaSession for System Quick Settings Card
+        // 2. High-Performance WifiLock: Prevent Samsung One UI and Android OS from throttling sockets
+        try {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            @Suppress("DEPRECATION")
+            wifiLock = wifiManager?.createWifiLock(
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "EVA::MediaWifiLock"
+            )
+        } catch (_: Exception) {}
+
+        // 3. Initialize Native Android MediaSession for System Quick Settings Card
         setupMediaSession()
     }
 
@@ -116,15 +131,16 @@ class EvaMediaPlaybackService : Service() {
             setCallback(object : MediaSessionCompat.Callback() {
                 override fun onPlay() {
                     isPlaying = true
+                    acquireLocks()
                     updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
-                    EvaWebViewPool.togglePlayPause(activeServiceId)
+                    EvaWebViewPool.setPlayPauseState(activeServiceId, true)
                     refreshNotification()
                 }
 
                 override fun onPause() {
                     isPlaying = false
                     updatePlaybackState(PlaybackStateCompat.STATE_PAUSED)
-                    EvaWebViewPool.togglePlayPause(activeServiceId)
+                    EvaWebViewPool.setPlayPauseState(activeServiceId, false)
                     refreshNotification()
                 }
 
@@ -178,8 +194,9 @@ class EvaMediaPlaybackService : Service() {
             ACTION_PLAY_PAUSE -> {
                 isPlaying = !isPlaying
                 val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+                if (isPlaying) acquireLocks()
                 updatePlaybackState(state)
-                EvaWebViewPool.togglePlayPause(activeServiceId)
+                EvaWebViewPool.setPlayPauseState(activeServiceId, isPlaying)
                 refreshNotification()
                 return START_STICKY
             }
@@ -201,7 +218,7 @@ class EvaMediaPlaybackService : Service() {
                 currentTitle = title
                 isPlaying = true
 
-                acquireWakeLock()
+                acquireLocks()
                 updateMetadata(serviceName, title)
                 updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
                 refreshNotification()
@@ -216,7 +233,7 @@ class EvaMediaPlaybackService : Service() {
                 currentTitle = title
                 isPlaying = true
 
-                acquireWakeLock()
+                acquireLocks()
                 updateMetadata(serviceName, title)
                 updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
 
@@ -338,20 +355,26 @@ class EvaMediaPlaybackService : Service() {
         }
     }
 
-    private fun acquireWakeLock() {
-        if (wakeLock?.isHeld == false) {
-            wakeLock?.acquire(3 * 60 * 60 * 1000L /* 3 hours max */)
-        }
+    private fun acquireLocks() {
+        try {
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(6 * 60 * 60 * 1000L /* 6 hours max */)
+            }
+            if (wifiLock?.isHeld == false) {
+                wifiLock?.acquire()
+            }
+        } catch (_: Exception) {}
     }
 
-    private fun releaseWakeLock() {
-        if (wakeLock?.isHeld == true) {
-            wakeLock?.release()
-        }
+    private fun releaseLocks() {
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+            if (wifiLock?.isHeld == true) wifiLock?.release()
+        } catch (_: Exception) {}
     }
 
     private fun stopServiceGracefully() {
-        releaseWakeLock()
+        releaseLocks()
         mediaSession?.isActive = false
         mediaSession?.release()
         mediaSession = null

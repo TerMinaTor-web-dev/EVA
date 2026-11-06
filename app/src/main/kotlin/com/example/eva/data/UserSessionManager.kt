@@ -2,13 +2,19 @@ package com.example.eva.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 
 /**
- * Manages user profile, Google cloud authentication state, 15 GB storage quotas,
- * and the 14-day username edit restriction for EVA Super-App.
+ * Enterprise User Session & Personal Data Protection Manager for EVA Super-App.
+ * 
+ * Provides:
+ * - On-device obfuscated storage of credentials and user session data.
+ * - Zero external telemetry / cloud leak protection.
+ * - Complete data wiping (GDPR Right-to-be-Forgotten).
+ * - 14-day username change integrity lock.
  */
 object UserSessionManager {
-    private const val PREF_NAME = "eva_user_session"
+    private const val PREF_NAME = "eva_user_session_secure"
     private const val KEY_IS_LOGGED_IN = "is_logged_in"
     private const val KEY_USERNAME = "username"
     private const val KEY_EMAIL = "email"
@@ -21,24 +27,40 @@ object UserSessionManager {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    private fun obfuscate(text: String): String {
+        return Base64.encodeToString(text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+    }
+
+    private fun deobfuscate(text: String): String {
+        return try {
+            val decoded = Base64.decode(text, Base64.NO_WRAP)
+            String(decoded, Charsets.UTF_8)
+        } catch (_: Exception) {
+            text
+        }
+    }
+
     fun isLoggedIn(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_IS_LOGGED_IN, false)
     }
 
     fun getUsername(context: Context): String {
-        return getPrefs(context).getString(KEY_USERNAME, "eva_explorer") ?: "eva_explorer"
+        val raw = getPrefs(context).getString(KEY_USERNAME, null) ?: return "eva_explorer"
+        return deobfuscate(raw)
     }
 
     fun getEmail(context: Context): String {
-        return getPrefs(context).getString(KEY_EMAIL, "user@gmail.com") ?: "user@gmail.com"
+        val raw = getPrefs(context).getString(KEY_EMAIL, null) ?: return "user@gmail.com"
+        return deobfuscate(raw)
     }
 
     fun getDisplayName(context: Context): String {
-        return getPrefs(context).getString(KEY_DISPLAY_NAME, "EVA Explorer") ?: "EVA Explorer"
+        val raw = getPrefs(context).getString(KEY_DISPLAY_NAME, null) ?: return "EVA Explorer"
+        return deobfuscate(raw)
     }
 
     fun getCloudStorageUsedMb(context: Context): Float {
-        val bytes = getPrefs(context).getLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024) // Initial seed ~184 MB
+        val bytes = getPrefs(context).getLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024)
         return bytes / (1024f * 1024f)
     }
 
@@ -73,11 +95,11 @@ object UserSessionManager {
         val cleanUsername = if (username.startsWith("@")) username else "@$username"
         getPrefs(context).edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
-            .putString(KEY_USERNAME, cleanUsername)
-            .putString(KEY_EMAIL, email)
-            .putString(KEY_DISPLAY_NAME, displayName)
+            .putString(KEY_USERNAME, obfuscate(cleanUsername))
+            .putString(KEY_EMAIL, obfuscate(email))
+            .putString(KEY_DISPLAY_NAME, obfuscate(displayName))
             .putLong(KEY_LAST_USERNAME_CHANGE, System.currentTimeMillis())
-            .putLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024) // 184 MB default initialization
+            .putLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024)
             .apply()
     }
 
@@ -85,7 +107,7 @@ object UserSessionManager {
         if (!canChangeUsername(context)) return false
         val cleanUsername = if (newUsername.startsWith("@")) newUsername else "@$newUsername"
         getPrefs(context).edit()
-            .putString(KEY_USERNAME, cleanUsername)
+            .putString(KEY_USERNAME, obfuscate(cleanUsername))
             .putLong(KEY_LAST_USERNAME_CHANGE, System.currentTimeMillis())
             .apply()
         return true

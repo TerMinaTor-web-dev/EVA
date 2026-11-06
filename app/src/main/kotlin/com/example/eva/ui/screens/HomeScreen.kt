@@ -70,6 +70,7 @@ import com.example.eva.data.AppServiceCatalog
 import com.example.eva.data.UserSessionManager
 import com.example.eva.model.AppService
 import com.example.eva.ui.components.CrystalBubble
+import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EvaColors
 
 @Composable
@@ -501,6 +502,22 @@ fun HomeScreen(
                         trackColor = Color.White.copy(alpha = 0.1f),
                         modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
                     )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Open Source GDPR & Data Protection Action
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            EvaWebViewPool.clearAllDataAndCookies(context)
+                            showCloudDetailsDialog = false
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF3B1014)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Erase Browsing Data & Reset Cache", color = Color(0xFFFF8A80), fontSize = 11.5.sp)
+                    }
                 }
             },
             confirmButton = {

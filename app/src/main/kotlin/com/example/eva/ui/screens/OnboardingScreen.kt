@@ -277,7 +277,6 @@ fun OnboardingScreen(
                                     }
                                     googleAccountPickerLauncher.launch(intent)
                                 } catch (e: Exception) {
-                                    showManualEmailInput = true
                                     Toast.makeText(context, "Select your account or enter your Gmail below", Toast.LENGTH_SHORT).show()
                                 }
                             },
@@ -293,44 +292,48 @@ fun OnboardingScreen(
                             )
                         }
 
-                        // Toggle manual email input
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Text(
-                                text = if (showManualEmailInput) "Hide manual entry" else "Or type Gmail address manually",
-                                color = EvaColors.NeonCyan,
-                                fontSize = 11.sp,
-                                modifier = Modifier
-                                    .clickable { showManualEmailInput = !showManualEmailInput }
-                                    .padding(vertical = 4.dp)
+                                text = "— OR ENTER GMAIL MANUALLY —",
+                                color = EvaColors.TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
                             )
                         }
 
-                        if (showManualEmailInput) {
-                            OutlinedTextField(
-                                value = emailInput,
-                                onValueChange = {
-                                    emailInput = it.trim()
-                                    if (it.contains("@") && it.contains(".")) {
-                                        isGoogleConnected = true
+                        OutlinedTextField(
+                            value = emailInput,
+                            onValueChange = {
+                                val clean = it.trim()
+                                emailInput = clean
+                                if (clean.contains("@") && clean.contains(".")) {
+                                    isGoogleConnected = true
+                                    val prefix = clean.substringBefore("@")
+                                        .filter { ch -> ch.isLetterOrDigit() || ch == '_' }
+                                        .lowercase()
+                                    if (prefix.isNotBlank() && usernameInput.isBlank()) {
+                                        usernameInput = prefix
                                     }
-                                },
-                                placeholder = { Text("your.email@gmail.com", color = EvaColors.TextMuted, fontSize = 12.sp) },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = EvaColors.NeonCyan,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                                    focusedContainerColor = Color.White.copy(alpha = 0.03f),
-                                    unfocusedContainerColor = Color.White.copy(alpha = 0.03f)
-                                )
+                                }
+                            },
+                            placeholder = { Text("yourname@gmail.com", color = EvaColors.TextMuted, fontSize = 12.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = EvaColors.NeonCyan,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                                focusedContainerColor = Color.White.copy(alpha = 0.03f),
+                                unfocusedContainerColor = Color.White.copy(alpha = 0.03f)
                             )
-                        }
+                        )
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -711,7 +714,7 @@ fun OnboardingScreen(
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
-                    text = "End-to-End Sandboxed • Anti-Redirect • OWASP Hardened",
+                    text = "End-to-End Sandboxed • Zero Telemetry • GDPR & OWASP Hardened",
                     color = EvaColors.TextMuted,
                     fontSize = 10.sp
                 )
