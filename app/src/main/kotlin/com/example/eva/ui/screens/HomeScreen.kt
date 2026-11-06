@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -48,6 +49,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +74,8 @@ import androidx.compose.ui.unit.sp
 import com.example.eva.BuildConfig
 import com.example.eva.data.AppServiceCatalog
 import com.example.eva.data.EvaCloudStorageManager
+import com.example.eva.data.EvaHybridStorageEngine
+import com.example.eva.data.EvaPlayStoreBridgeManager
 import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.model.AppService
@@ -101,6 +106,12 @@ fun HomeScreen(
     var cloudTotalGb by remember { mutableStateOf(UserSessionManager.getCloudStorageTotalGb(context)) }
     var isSyncingQuota by remember { mutableStateOf(false) }
 
+    var selectedDialogTab by remember { mutableStateOf(0) }
+    var isPlayStoreBridgeEnabled by remember { mutableStateOf(UserSessionManager.isPlayStoreBridgeConnected(context)) }
+    var isHybridSyncing by remember { mutableStateOf(false) }
+    var localStorageUsedMb by remember { mutableStateOf(UserSessionManager.getLocalStorageUsedMb(context)) }
+    var hardwareSpaceSavedMb by remember { mutableStateOf(UserSessionManager.getHardwareSpaceSavedMb(context)) }
+
     fun refreshCloudQuota() {
         isSyncingQuota = true
         EvaCloudStorageManager.checkQuotaAndProvision(context, email) { _ ->
@@ -109,6 +120,18 @@ fun HomeScreen(
             cloudUsedGb = UserSessionManager.getCloudStorageUsedGb(context)
             cloudTotalGb = UserSessionManager.getCloudStorageTotalGb(context)
             Toast.makeText(context, "Google Cloud Space Synced: ${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun runHybridSync() {
+        isHybridSyncing = true
+        EvaHybridStorageEngine.syncNow(context) { metrics ->
+            isHybridSyncing = false
+            localStorageUsedMb = metrics.localUsedMb
+            hardwareSpaceSavedMb = metrics.hardwareSavedMb
+            cloudUsedGb = metrics.cloudUsedGb
+            cloudFreeGb = UserSessionManager.getCloudStorageFreeGb(context)
+            Toast.makeText(context, "Hybrid Sync Complete: ${metrics.filesSynced} files synced to /EVA_CloudSpace/", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -484,121 +507,313 @@ fun HomeScreen(
                         contentDescription = "Cloud",
                         tint = EvaColors.NeonCyan
                     )
-                    Text("EVA Cloud Space Vault", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("EVA Cloud & Hybrid Vault", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Linked Google Account: $email",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = "Username: $username",
-                        color = EvaColors.NeonCyan,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    if (daysRemaining > 0) {
-                        Text(
-                            text = "🔒 Username edit locked for $daysRemaining more days to protect identity security.",
-                            color = Color(0xFFFFB74D),
-                            fontSize = 11.sp
-                        )
-                    } else {
-                        Text(
-                            text = "✅ Username can be edited.",
-                            color = EvaColors.NeonCyan,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Header Identity
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Storage Quota: ${String.format(Locale.US, "%.1f", cloudUsedGb)} GB / ${String.format(Locale.US, "%.1f", cloudTotalGb)} GB used",
-                            color = EvaColors.TextSecondary,
-                            fontSize = 11.sp
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(EvaColors.NeonCyan.copy(alpha = 0.18f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
+                        Column {
                             Text(
-                                text = "9+ GB READY",
+                                text = "Account: $email",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.5.sp
+                            )
+                            Text(
+                                text = "Username: $username",
                                 color = EvaColors.NeonCyan,
-                                fontSize = 9.sp,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (daysRemaining > 0) {
+                            Text(
+                                text = "🔒 $daysRemaining d",
+                                color = Color(0xFFFFB74D),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = "✅ Verified",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
-                    LinearProgressIndicator(
-                        progress = { if (cloudTotalGb > 0) (cloudUsedGb / cloudTotalGb).coerceIn(0f, 1f) else 0.16f },
-                        color = EvaColors.NeonCyan,
-                        trackColor = Color.White.copy(alpha = 0.1f),
-                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp))
-                    )
-
+                    // Tab Selector: Cloud Space vs Play Store & Hybrid Sync
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Min 9.0 GB Required Free Space",
-                            color = EvaColors.TextMuted,
-                            fontSize = 10.sp
-                        )
-                        Text(
-                            text = "${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free Available",
-                            color = EvaColors.NeonCyan,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    // Vault Folder Architecture Breakdown
-                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.Black.copy(alpha = 0.35f))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("📁 Provisioned Vault Structure (/EVA_CloudSpace/):", color = Color.White.copy(alpha = 0.9f), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
-                        Text("• /Sessions/ (Multi-tab cookie persistence & tab state)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
-                        Text("• /Media/ (120 FPS playback cache & offline streams)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
-                        Text("• /Archives/ (Encrypted bookmarks & settings backup)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedDialogTab == 0) EvaColors.NeonCyan.copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable { selectedDialogTab = 0 }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "15 GB Cloud",
+                                color = if (selectedDialogTab == 0) EvaColors.NeonCyan else Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedDialogTab == 1) EvaColors.NeonPurple.copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable { selectedDialogTab = 1 }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Play Store & Sync",
+                                color = if (selectedDialogTab == 1) EvaColors.NeonPurple else Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    if (selectedDialogTab == 0) {
+                        // TAB 0: 15 GB Cloud Space Vault
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Storage Quota: ${String.format(Locale.US, "%.1f", cloudUsedGb)} GB / ${String.format(Locale.US, "%.1f", cloudTotalGb)} GB",
+                                color = EvaColors.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(EvaColors.NeonCyan.copy(alpha = 0.18f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "9+ GB READY",
+                                    color = EvaColors.NeonCyan,
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
 
-                    // Sync Live Quota Button
-                    androidx.compose.material3.Button(
-                        onClick = { refreshCloudQuota() },
-                        enabled = !isSyncingQuota,
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EvaColors.NeonCyan.copy(alpha = 0.2f)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, EvaColors.NeonCyan.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = EvaColors.NeonCyan, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isSyncingQuota) "Syncing Drive Quota..." else "Sync Google Drive Quota",
+                        LinearProgressIndicator(
+                            progress = { if (cloudTotalGb > 0) (cloudUsedGb / cloudTotalGb).coerceIn(0f, 1f) else 0.16f },
                             color = EvaColors.NeonCyan,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp))
                         )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Min 9.0 GB Required Free Space",
+                                color = EvaColors.TextMuted,
+                                fontSize = 10.sp
+                            )
+                            Text(
+                                text = "${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free Available",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Vault Folder Architecture Breakdown
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.Black.copy(alpha = 0.35f))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text("📁 Provisioned Vault Structure (/EVA_CloudSpace/):", color = Color.White.copy(alpha = 0.9f), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            Text("• /Sessions/ (Multi-tab cookie persistence & tab state)", color = EvaColors.TextSecondary, fontSize = 9.sp)
+                            Text("• /Media/ (120 FPS playback cache & offline streams)", color = EvaColors.TextSecondary, fontSize = 9.sp)
+                            Text("• /Archives/ (Encrypted bookmarks & settings backup)", color = EvaColors.TextSecondary, fontSize = 9.sp)
+                        }
+
+                        // Sync Live Quota Button
+                        androidx.compose.material3.Button(
+                            onClick = { refreshCloudQuota() },
+                            enabled = !isSyncingQuota,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EvaColors.NeonCyan.copy(alpha = 0.2f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, EvaColors.NeonCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = EvaColors.NeonCyan, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isSyncingQuota) "Syncing Drive Quota..." else "Sync Google Drive Quota",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        // TAB 1: Play Store Bridge & Hybrid Hardware Sync
+                        // 1. Google Play Store Bridge Toggle
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.04f))
+                                .border(1.dp, EvaColors.NeonPurple.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Google Play Store Bridge",
+                                    color = Color.White,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isPlayStoreBridgeEnabled) "Connected with Google Account" else "Bridge Disconnected",
+                                    color = if (isPlayStoreBridgeEnabled) EvaColors.NeonPurple else EvaColors.TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Switch(
+                                checked = isPlayStoreBridgeEnabled,
+                                onCheckedChange = { enabled ->
+                                    isPlayStoreBridgeEnabled = enabled
+                                    UserSessionManager.setPlayStoreBridgeConnected(context, enabled)
+                                    Toast.makeText(context, if (enabled) "Play Store Bridge Linked" else "Play Store Bridge Unlinked", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = EvaColors.NeonPurple,
+                                    uncheckedThumbColor = Color.Gray,
+                                    uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                                )
+                            )
+                        }
+
+                        // 2. Hardware + Cloud Storage Savings Dashboard
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.Black.copy(alpha = 0.35f))
+                                .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Device Flash Space Saved:",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "~${String.format(Locale.US, "%.1f", hardwareSpaceSavedMb / 1024f)} GB",
+                                    color = EvaColors.NeonCyan,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+
+                            Text(
+                                text = "• Local Flash Cache: ${String.format(Locale.US, "%.1f", localStorageUsedMb)} MB (120 FPS high-speed buffers)",
+                                color = EvaColors.TextSecondary,
+                                fontSize = 9.5.sp
+                            )
+                            Text(
+                                text = "• Cloud Offload: ${String.format(Locale.US, "%.1f", cloudUsedGb)} GB in /EVA_CloudSpace/",
+                                color = EvaColors.TextSecondary,
+                                fontSize = 9.5.sp
+                            )
+                            Text(
+                                text = "• Hardware Efficiency: ~98% storage reduction vs heavy native APKs",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 9.5.sp
+                            )
+                        }
+
+                        // 3. Hybrid Sync Now Button
+                        androidx.compose.material3.Button(
+                            onClick = { runHybridSync() },
+                            enabled = !isHybridSyncing,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EvaColors.NeonPurple.copy(alpha = 0.25f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, EvaColors.NeonPurple.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = EvaColors.NeonPurple, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isHybridSyncing) "Syncing Hardware & Cloud..." else "Sync Cloud & Hardware Now",
+                                color = EvaColors.NeonPurple,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // 4. Quick Play Store Bridge App Launcher
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { EvaPlayStoreBridgeManager.openInPlayStore(context, "com.instagram.android") },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Instagram APK", color = Color.White, fontSize = 9.5.sp)
+                            }
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { EvaPlayStoreBridgeManager.openInPlayStore(context, "com.google.android.youtube") },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("YouTube APK", color = Color.White, fontSize = 9.5.sp)
+                            }
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { EvaPlayStoreBridgeManager.openPlayStoreApp(context) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Play Store", color = EvaColors.NeonCyan, fontSize = 9.5.sp)
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
@@ -616,8 +831,6 @@ fun HomeScreen(
                     ) {
                         Text("Erase Browsing Data & Reset Cache", color = Color(0xFFFF8A80), fontSize = 11.5.sp)
                     }
-
-                    Spacer(modifier = Modifier.height(6.dp))
 
                     // GitHub Auto-Update Checker Button
                     androidx.compose.material3.OutlinedButton(

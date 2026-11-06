@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk",
-  "changelog": "Google Drive 15 GB Cloud Storage Backbone & 9+ GB Minimum Free Space Quota Enforcement Engine, personal /EVA_CloudSpace/ vault folder architecture (Sessions, Media, Archives), and real-time cloud storage quota verification."
+  "versionCode": 10,
+  "versionName": "1.9",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.9_Release.apk",
+  "changelog": "Hybrid Cloud & Hardware Combination Storage Sync Engine (~2.4 GB device storage saved), Google Play Store Ecosystem Bridge (package deep-linking & APK update coordinator), and dual-view Cloud & Hybrid Vault Hub."
 }

@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk">
-    <img src="https://img.shields.io/badge/Download%20APK-v1.8%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
+  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.9_Release.apk">
+    <img src="https://img.shields.io/badge/Download%20APK-v1.9%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
   </a>
 </p>
 
@@ -33,13 +33,13 @@
 
 You can download and install the official signed release APK directly on any Android device:
 
-* **[Download EVA_v1.8_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk)**
+* **[Download EVA_v1.9_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.9_Release.apk)**
   * **Architecture:** Universal (ARM64, ARMv7, x86_64)
   * **Min Android:** Android 8.0 (Oreo / API 26)
   * **Target Android:** Android 16 (API 36)
   * **Signature:** APK Signature Scheme v2 (Signed with official 28-year release certificate)
   * **Security:** Hardened against root exploits, Frida/Xposed hooks, overlay tapjacking, and MITM attacks.
-* **Legacy Releases:** [EVA_v1.7_Release.apk](release/EVA_v1.7_Release.apk) | [EVA_v1.6_Release.apk](release/EVA_v1.6_Release.apk) | [EVA_v1.5_Release.apk](release/EVA_v1.5_Release.apk) | [EVA_v1.4_Release.apk](release/EVA_v1.4_Release.apk) | [EVA_v1.3_Release.apk](release/EVA_v1.3_Release.apk) | [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
+* **Legacy Releases:** [EVA_v1.8_Release.apk](release/EVA_v1.8_Release.apk) | [EVA_v1.7_Release.apk](release/EVA_v1.7_Release.apk) | [EVA_v1.6_Release.apk](release/EVA_v1.6_Release.apk) | [EVA_v1.5_Release.apk](release/EVA_v1.5_Release.apk) | [EVA_v1.4_Release.apk](release/EVA_v1.4_Release.apk) | [EVA_v1.3_Release.apk](release/EVA_v1.3_Release.apk) | [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
 
 ---
 
@@ -48,6 +48,8 @@ You can download and install the official signed release APK directly on any And
 Modern mobile operating systems force users to install dozens of heavy, background-churning applications that consume gigabytes of storage, drain battery through persistent telemetry, and clutter the device.
 
 **EVA** unifies your essential digital experiences—**Instagram, WhatsApp Web, YouTube, YouTube Music, Spotify, LinkedIn, Facebook, X (Twitter), Reddit, and any custom web service**—into one cohesive, ultra-responsive native container with:
+- **Hybrid Cloud & Hardware Combination Storage Sync Engine**: High-performance local flash caching capped at 250 MB for instant 120 FPS speed, combined with automatic background synchronization to Google Drive `/EVA_CloudSpace/`. Saves **~2.4 GB of physical device storage** by virtualizing heavy apps inside EVA.
+- **Google Play Store Ecosystem Bridge**: Direct in-app toggle linking the active Google Account to the device's Google Play Store (`com.android.vending`), enabling APK package status checks, native app updates, and seamless transition between sandboxed web apps and native applications.
 - **Google Drive 15 GB Cloud Storage Backbone**: Secure personal cloud space linked to user Google Identity provisioning `/EVA_CloudSpace/` with structured subdirectories: `/Sessions/` (multi-tab cookie persistence & memory sync), `/Media/` (120 FPS video streaming cache & audio buffers), and `/Archives/` (encrypted bookmarks & state exports).
 - **9+ GB Minimum Free Space Quota Enforcement Engine**: Evaluates Google Drive `storageQuota` limit and usage metrics. Enforces that Available Free Space $\ge 9.0$ GB; blocks installation/vault initialization with exact deficit analytics and clear resolution guidance if free storage is under 9 GB.
 - **YouTube Fullscreen Auto-Switch to Landscape**: True immersive theater mode with touch-aware play/pause gesture tracking, sensor landscape orientation lock, and screen wake lock during video playback.

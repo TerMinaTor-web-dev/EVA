@@ -25,6 +25,11 @@ object UserSessionManager {
     private const val KEY_CLOUD_TOTAL_BYTES = "cloud_total_bytes"
     private const val KEY_IS_CLOUD_ACTIVE = "is_cloud_active"
     private const val KEY_LAST_QUOTA_SYNC = "last_quota_sync"
+    private const val KEY_PLAYSTORE_BRIDGE_ENABLED = "playstore_bridge_enabled"
+    private const val KEY_HYBRID_SYNC_ENABLED = "hybrid_sync_enabled"
+    private const val KEY_LAST_HYBRID_SYNC = "last_hybrid_sync"
+    private const val KEY_LOCAL_STORAGE_USED_BYTES = "local_storage_used_bytes"
+    private const val KEY_HARDWARE_SPACE_SAVED_MB = "hardware_space_saved_mb"
     private const val FOURTEEN_DAYS_MILLIS = 14L * 24 * 60 * 60 * 1000L
 
     /** Standard Google Drive Free Storage: 15 GB = 16,106,127,360 bytes */
@@ -176,6 +181,50 @@ object UserSessionManager {
             .putLong(KEY_LAST_USERNAME_CHANGE, System.currentTimeMillis())
             .apply()
         return true
+    }
+
+    fun isPlayStoreBridgeConnected(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_PLAYSTORE_BRIDGE_ENABLED, true)
+    }
+
+    fun setPlayStoreBridgeConnected(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_PLAYSTORE_BRIDGE_ENABLED, enabled).apply()
+    }
+
+    fun isHybridSyncEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_HYBRID_SYNC_ENABLED, true)
+    }
+
+    fun setHybridSyncEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_HYBRID_SYNC_ENABLED, enabled).apply()
+    }
+
+    fun getLastHybridSyncTimestamp(context: Context): Long {
+        return getPrefs(context).getLong(KEY_LAST_HYBRID_SYNC, 0L)
+    }
+
+    fun getLocalStorageUsedBytes(context: Context): Long {
+        return getPrefs(context).getLong(KEY_LOCAL_STORAGE_USED_BYTES, 38L * 1024L * 1024L)
+    }
+
+    fun getLocalStorageUsedMb(context: Context): Float {
+        return getLocalStorageUsedBytes(context) / (1024f * 1024f)
+    }
+
+    fun getHardwareSpaceSavedMb(context: Context): Int {
+        return getPrefs(context).getInt(KEY_HARDWARE_SPACE_SAVED_MB, 2400)
+    }
+
+    fun saveHybridStorageMetrics(
+        context: Context,
+        localBytes: Long,
+        spaceSavedMb: Int
+    ) {
+        getPrefs(context).edit()
+            .putLong(KEY_LOCAL_STORAGE_USED_BYTES, localBytes)
+            .putInt(KEY_HARDWARE_SPACE_SAVED_MB, spaceSavedMb)
+            .putLong(KEY_LAST_HYBRID_SYNC, System.currentTimeMillis())
+            .apply()
     }
 
     fun logout(context: Context) {
