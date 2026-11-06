@@ -36,7 +36,9 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -60,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.eva.data.EvaCloudStorageManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.security.EvaPermissionManager
 import com.example.eva.ui.theme.EvaColors
@@ -75,6 +78,55 @@ fun OnboardingScreen(
     var isGoogleConnected by remember { mutableStateOf(false) }
     var showManualEmailInput by remember { mutableStateOf(false) }
 
+    // Google Drive 15 GB Quota & 9+ GB Free Threshold Verification State
+    var isCheckingQuota by remember { mutableStateOf(false) }
+    var cloudQuota by remember { mutableStateOf<EvaCloudStorageManager.StorageQuota?>(null) }
+    var cloudVault by remember { mutableStateOf<EvaCloudStorageManager.VaultFolderHierarchy?>(null) }
+    var quotaErrorMessage by remember { mutableStateOf<String?>(null) }
+    var isQuotaEligible by remember { mutableStateOf(false) }
+
+    fun verifyQuota(email: String) {
+        val clean = email.trim()
+        if (clean.isBlank() || !clean.contains("@") || !clean.contains(".")) {
+            isGoogleConnected = false
+            cloudQuota = null
+            cloudVault = null
+            isQuotaEligible = false
+            quotaErrorMessage = null
+            return
+        }
+        isCheckingQuota = true
+        quotaErrorMessage = null
+        EvaCloudStorageManager.checkQuotaAndProvision(context, clean) { result ->
+            isCheckingQuota = false
+            when (result) {
+                is EvaCloudStorageManager.QuotaResult.Success -> {
+                    cloudQuota = result.quota
+                    cloudVault = result.vault
+                    isQuotaEligible = true
+                    quotaErrorMessage = null
+                    isGoogleConnected = true
+                    Toast.makeText(context, "Google Cloud Space Verified: ${result.quota.formatFreeGb()} GB Free", Toast.LENGTH_SHORT).show()
+                }
+                is EvaCloudStorageManager.QuotaResult.InsufficientSpace -> {
+                    cloudQuota = result.quota
+                    cloudVault = null
+                    isQuotaEligible = false
+                    quotaErrorMessage = result.message
+                    isGoogleConnected = true
+                    Toast.makeText(context, "Insufficient Drive Space: 9+ GB required", Toast.LENGTH_LONG).show()
+                }
+                is EvaCloudStorageManager.QuotaResult.Error -> {
+                    cloudQuota = result.fallbackQuota
+                    cloudVault = null
+                    isQuotaEligible = false
+                    quotaErrorMessage = result.reason
+                    isGoogleConnected = true
+                }
+            }
+        }
+    }
+
     // Dynamic Permission Status State
     var permissionStatus by remember {
         mutableStateOf(EvaPermissionManager.getDetailedStatus(context))
@@ -88,7 +140,6 @@ fun OnboardingScreen(
             val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
             if (!accountName.isNullOrBlank()) {
                 emailInput = accountName
-                isGoogleConnected = true
                 showManualEmailInput = false
 
                 // Auto-suggest username from email prefix
@@ -98,7 +149,7 @@ fun OnboardingScreen(
                 if (prefix.isNotBlank() && usernameInput.isBlank()) {
                     usernameInput = prefix
                 }
-                Toast.makeText(context, "Google Account Linked: $accountName", Toast.LENGTH_SHORT).show()
+                verifyQuota(accountName)
             }
         }
     }
@@ -312,13 +363,18 @@ fun OnboardingScreen(
                                 val clean = it.trim()
                                 emailInput = clean
                                 if (clean.contains("@") && clean.contains(".")) {
-                                    isGoogleConnected = true
                                     val prefix = clean.substringBefore("@")
                                         .filter { ch -> ch.isLetterOrDigit() || ch == '_' }
                                         .lowercase()
                                     if (prefix.isNotBlank() && usernameInput.isBlank()) {
                                         usernameInput = prefix
                                     }
+                                    verifyQuota(clean)
+                                } else {
+                                    isGoogleConnected = false
+                                    isQuotaEligible = false
+                                    quotaErrorMessage = null
+                                    cloudQuota = null
                                 }
                             },
                             placeholder = { Text("yourname@gmail.com", color = EvaColors.TextMuted, fontSize = 12.sp) },
@@ -335,23 +391,26 @@ fun OnboardingScreen(
                             )
                         )
                     } else {
+                        val isAlert = quotaErrorMessage != null && !isQuotaEligible
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(EvaColors.NeonCyan.copy(alpha = 0.15f))
+                                .background(if (isAlert) Color(0xFF3B1014) else EvaColors.NeonCyan.copy(alpha = 0.15f))
+                                .border(1.dp, if (isAlert) Color(0xFFFF5252).copy(alpha = 0.6f) else EvaColors.NeonCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Active",
-                                    tint = EvaColors.NeonCyan,
+                                    imageVector = if (isAlert) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                    contentDescription = if (isAlert) "Alert" else "Active",
+                                    tint = if (isAlert) Color(0xFFFF5252) else EvaColors.NeonCyan,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Column {
@@ -362,8 +421,13 @@ fun OnboardingScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = "15 GB Personal Cloud Vault Linked",
-                                        color = EvaColors.NeonCyan,
+                                        text = when {
+                                            isCheckingQuota -> "Checking Google Drive Quota..."
+                                            isAlert -> "Quota Alert: ${cloudQuota?.formatFreeGb() ?: "0.0"} GB Free (< 9 GB)"
+                                            isQuotaEligible -> "15 GB Personal Cloud Space • ${cloudQuota?.formatFreeGb() ?: "12.6"} GB Free"
+                                            else -> "15 GB Personal Cloud Vault Linked"
+                                        },
+                                        color = if (isAlert) Color(0xFFFF8A80) else EvaColors.NeonCyan,
                                         fontSize = 10.5.sp
                                     )
                                 }
@@ -371,13 +435,16 @@ fun OnboardingScreen(
 
                             Text(
                                 text = "Change",
-                                color = EvaColors.NeonCyan,
+                                color = if (isAlert) Color(0xFFFF8A80) else EvaColors.NeonCyan,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .clickable {
                                         isGoogleConnected = false
                                         showManualEmailInput = true
+                                        cloudQuota = null
+                                        quotaErrorMessage = null
+                                        isQuotaEligible = false
                                     }
                                     .padding(4.dp)
                             )
@@ -535,97 +602,383 @@ fun OnboardingScreen(
                 }
             }
 
-            // 5. Free 15 GB Cloud Storage Vault Preview & App Account Note
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                EvaColors.NeonCyan.copy(alpha = 0.08f),
-                                EvaColors.NeonPurple.copy(alpha = 0.08f)
-                            )
-                        )
-                    )
-                    .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                    .padding(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDone,
-                                contentDescription = "Cloud Vault",
-                                tint = EvaColors.NeonCyan,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Personal Cloud Vault",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Text(
-                            text = "15.0 GB Quota",
-                            color = EvaColors.NeonCyan,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    LinearProgressIndicator(
-                        progress = { 0.02f },
+            // 5. Free 15 GB Cloud Storage Vault & 9+ GB Free Space Quota Enforcement Engine
+            when {
+                isCheckingQuota -> {
+                    // Scanning state
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = EvaColors.NeonCyan,
-                        trackColor = Color.White.copy(alpha = 0.1f)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.04f))
+                            .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
                     ) {
-                        Text(
-                            text = "184 MB cache initialized",
-                            color = EvaColors.TextMuted,
-                            fontSize = 10.5.sp
-                        )
-                        Text(
-                            text = "14.8 GB Free",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = "Cloud Scanning",
+                                    tint = EvaColors.NeonCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Analyzing Google Drive Storage Quota...",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = EvaColors.NeonCyan,
+                                trackColor = Color.White.copy(alpha = 0.1f)
+                            )
+                            Text(
+                                text = "Evaluating free space (strictly requires 9.0+ GB free space)...",
+                                color = EvaColors.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
+                }
+                quotaErrorMessage != null || (cloudQuota != null && !cloudQuota!!.isEligible) -> {
+                    // Insufficient Space Warning Card (< 9 GB)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF260D10))
+                            .border(1.5.dp, Color(0xFFFF5252).copy(alpha = 0.8f), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Deficit",
+                                    tint = Color(0xFFFF5252),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Insufficient Google Drive Free Space",
+                                        color = Color(0xFFFF8A80),
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Minimum 9.0 GB Free Space Required",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                            }
 
-                    Text(
-                        text = "💡 Google Ecosystem: Linking your Google account syncs your 15 GB Drive vault. In EVA, this account is accessible on YouTube & YouTube Music, or you can sign into another account inside individual apps anytime.",
-                        color = Color.White.copy(alpha = 0.75f),
-                        fontSize = 10.5.sp,
-                        lineHeight = 14.sp
-                    )
+                            // Metrics Table
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.Black.copy(alpha = 0.35f))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Available", color = EvaColors.TextMuted, fontSize = 10.sp)
+                                    Text(
+                                        text = "${cloudQuota?.formatFreeGb() ?: "0.0"} GB",
+                                        color = Color(0xFFFF8A80),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Column {
+                                    Text("Required", color = EvaColors.TextMuted, fontSize = 10.sp)
+                                    Text("9.0 GB", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Column {
+                                    Text("Deficit to Clear", color = EvaColors.TextMuted, fontSize = 10.sp)
+                                    Text(
+                                        text = "${cloudQuota?.formatDeficitGb() ?: "0.0"} GB",
+                                        color = Color(0xFFFFB74D),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "⚠️ Your Google Drive does not have enough free space to mount EVA's unified cloud vault. Please clean up Drive/Gmail files or link another Google Account with at least 9 GB free space.",
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { verifyQuota(emailInput) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Retry", tint = Color.White, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Re-verify", color = Color.White, fontSize = 11.sp)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        isGoogleConnected = false
+                                        showManualEmailInput = true
+                                        cloudQuota = null
+                                        quotaErrorMessage = null
+                                        isQuotaEligible = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252).copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Switch Account", color = Color(0xFFFF8A80), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+                isQuotaEligible && cloudQuota != null -> {
+                    // Verified Eligible Cloud Space Card (>= 9 GB free)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        EvaColors.NeonCyan.copy(alpha = 0.1f),
+                                        EvaColors.NeonPurple.copy(alpha = 0.1f)
+                                    )
+                                )
+                            )
+                            .border(1.2.dp, EvaColors.NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDone,
+                                        contentDescription = "Cloud Vault",
+                                        tint = EvaColors.NeonCyan,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Personal Cloud Space Activated",
+                                            color = Color.White,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Linked to $emailInput",
+                                            color = EvaColors.TextSecondary,
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(EvaColors.NeonCyan.copy(alpha = 0.2f))
+                                        .border(0.5.dp, EvaColors.NeonCyan, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "9+ GB VERIFIED",
+                                        color = EvaColors.NeonCyan,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            LinearProgressIndicator(
+                                progress = { cloudQuota!!.usedRatio },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = EvaColors.NeonCyan,
+                                trackColor = Color.White.copy(alpha = 0.12f)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "${cloudQuota!!.formatUsedGb()} GB used of 15.0 GB",
+                                    color = EvaColors.TextMuted,
+                                    fontSize = 10.5.sp
+                                )
+                                Text(
+                                    text = "${cloudQuota!!.formatFreeGb()} GB Free",
+                                    color = EvaColors.NeonCyan,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Cloud Vault Hierarchy Breakdown
+                            Text(
+                                text = "📁 Provisioned Cloud Vault Architecture:",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.Black.copy(alpha = 0.35f))
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("• /EVA_CloudSpace/Sessions/ (Multi-tab cookie persistence & memory sync)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                                Text("• /EVA_CloudSpace/Media/ (Stream caching & 120 FPS playback buffer)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                                Text("• /EVA_CloudSpace/Archives/ (Encrypted bookmarks & settings backup)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    // Default Informational Card
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        EvaColors.NeonCyan.copy(alpha = 0.08f),
+                                        EvaColors.NeonPurple.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDone,
+                                        contentDescription = "Cloud Vault",
+                                        tint = EvaColors.NeonCyan,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Personal Cloud Vault",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Text(
+                                    text = "15.0 GB Quota",
+                                    color = EvaColors.NeonCyan,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            LinearProgressIndicator(
+                                progress = { 0.16f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = EvaColors.NeonCyan,
+                                trackColor = Color.White.copy(alpha = 0.1f)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Requires 9.0+ GB Free Space",
+                                    color = EvaColors.TextMuted,
+                                    fontSize = 10.5.sp
+                                )
+                                Text(
+                                    text = "15 GB Personal Vault",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Text(
+                                text = "💡 Linking your Google account provisions a private 15 GB Cloud Space (/EVA_CloudSpace/). To guarantee high performance, EVA enforces a minimum of 9.0 GB free space.",
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontSize = 10.5.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
             // 6. Enter EVA Super-Engine Button with Real Verification
-            val isFormValid = emailInput.isNotBlank() && emailInput.contains("@") && emailInput.contains(".") && usernameInput.length >= 3
+            val isFormValid = emailInput.isNotBlank() && emailInput.contains("@") && emailInput.contains(".") && usernameInput.length >= 3 && isQuotaEligible && !isCheckingQuota
 
             Button(
                 onClick = {
+                    if (isCheckingQuota) {
+                        Toast.makeText(context, "Verifying Google Drive storage quota...", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    if (!isQuotaEligible) {
+                        if (quotaErrorMessage != null) {
+                            Toast.makeText(context, "Insufficient Google Drive space. EVA requires at least 9 GB free space to continue.", Toast.LENGTH_LONG).show()
+                        } else {
+                            verifyQuota(emailInput)
+                        }
+                        return@Button
+                    }
+
                     val finalUsername = usernameInput.trim()
                     val finalEmail = emailInput.trim()
 
@@ -649,7 +1002,7 @@ fun OnboardingScreen(
                         displayName = displayName
                     )
 
-                    Toast.makeText(context, "Welcome to EVA, @$finalUsername!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Welcome to EVA, @$finalUsername! 15 GB Cloud Vault Active.", Toast.LENGTH_SHORT).show()
                     onCompleteOnboarding()
                 },
                 modifier = Modifier
@@ -688,7 +1041,12 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = if (isFormValid) "Enter EVA Super-Engine" else "Sign in with Google to Continue",
+                            text = when {
+                                isCheckingQuota -> "Verifying Cloud Quota..."
+                                quotaErrorMessage != null && !isQuotaEligible -> "Requires 9+ GB Free Space to Continue"
+                                isFormValid -> "Enter EVA Super-Engine"
+                                else -> "Sign in with Google to Continue"
+                            },
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold

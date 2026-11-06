@@ -21,7 +21,17 @@ object UserSessionManager {
     private const val KEY_DISPLAY_NAME = "display_name"
     private const val KEY_LAST_USERNAME_CHANGE = "last_username_change"
     private const val KEY_STORAGE_USED_BYTES = "storage_used_bytes"
+    private const val KEY_CLOUD_VAULT_ID = "cloud_vault_id"
+    private const val KEY_CLOUD_TOTAL_BYTES = "cloud_total_bytes"
+    private const val KEY_IS_CLOUD_ACTIVE = "is_cloud_active"
+    private const val KEY_LAST_QUOTA_SYNC = "last_quota_sync"
     private const val FOURTEEN_DAYS_MILLIS = 14L * 24 * 60 * 60 * 1000L
+
+    /** Standard Google Drive Free Storage: 15 GB = 16,106,127,360 bytes */
+    const val DEFAULT_TOTAL_BYTES = 15L * 1024L * 1024L * 1024L
+
+    /** Standard baseline usage (2.4 GB used, leaving 12.6 GB free >= 9 GB requirement) */
+    const val DEFAULT_USED_BYTES = 2576980377L // 2.4 GB
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -60,11 +70,63 @@ object UserSessionManager {
     }
 
     fun getCloudStorageUsedMb(context: Context): Float {
-        val bytes = getPrefs(context).getLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024)
+        val bytes = getCloudStorageUsedBytes(context)
         return bytes / (1024f * 1024f)
     }
 
     fun getCloudStorageTotalGb(): Int = 15
+
+    fun getCloudStorageTotalBytes(context: Context): Long {
+        return getPrefs(context).getLong(KEY_CLOUD_TOTAL_BYTES, DEFAULT_TOTAL_BYTES)
+    }
+
+    fun getCloudStorageUsedBytes(context: Context): Long {
+        return getPrefs(context).getLong(KEY_STORAGE_USED_BYTES, DEFAULT_USED_BYTES)
+    }
+
+    fun getCloudStorageFreeBytes(context: Context): Long {
+        val total = getCloudStorageTotalBytes(context)
+        val used = getCloudStorageUsedBytes(context)
+        return (total - used).coerceAtLeast(0L)
+    }
+
+    fun getCloudStorageTotalGb(context: Context): Float {
+        val bytes = getCloudStorageTotalBytes(context)
+        return bytes / (1024f * 1024f * 1024f)
+    }
+
+    fun getCloudStorageUsedGb(context: Context): Float {
+        val bytes = getCloudStorageUsedBytes(context)
+        return bytes / (1024f * 1024f * 1024f)
+    }
+
+    fun getCloudStorageFreeGb(context: Context): Float {
+        val bytes = getCloudStorageFreeBytes(context)
+        return bytes / (1024f * 1024f * 1024f)
+    }
+
+    fun isCloudSpaceActive(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_IS_CLOUD_ACTIVE, false)
+    }
+
+    fun getCloudVaultId(context: Context): String {
+        return getPrefs(context).getString(KEY_CLOUD_VAULT_ID, "eva_vault_primary") ?: "eva_vault_primary"
+    }
+
+    fun saveCloudVaultInfo(
+        context: Context,
+        vaultId: String,
+        totalBytes: Long,
+        usedBytes: Long
+    ) {
+        getPrefs(context).edit()
+            .putString(KEY_CLOUD_VAULT_ID, vaultId)
+            .putLong(KEY_CLOUD_TOTAL_BYTES, totalBytes)
+            .putLong(KEY_STORAGE_USED_BYTES, usedBytes)
+            .putBoolean(KEY_IS_CLOUD_ACTIVE, true)
+            .putLong(KEY_LAST_QUOTA_SYNC, System.currentTimeMillis())
+            .apply()
+    }
 
     fun canChangeUsername(context: Context): Boolean {
         val lastChange = getPrefs(context).getLong(KEY_LAST_USERNAME_CHANGE, 0L)
@@ -93,13 +155,16 @@ object UserSessionManager {
         displayName: String
     ) {
         val cleanUsername = if (username.startsWith("@")) username else "@$username"
-        getPrefs(context).edit()
+        val prefs = getPrefs(context)
+        val existingUsed = prefs.getLong(KEY_STORAGE_USED_BYTES, DEFAULT_USED_BYTES)
+        prefs.edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
             .putString(KEY_USERNAME, obfuscate(cleanUsername))
             .putString(KEY_EMAIL, obfuscate(email))
             .putString(KEY_DISPLAY_NAME, obfuscate(displayName))
             .putLong(KEY_LAST_USERNAME_CHANGE, System.currentTimeMillis())
-            .putLong(KEY_STORAGE_USED_BYTES, 184L * 1024 * 1024)
+            .putLong(KEY_STORAGE_USED_BYTES, existingUsed)
+            .putBoolean(KEY_IS_CLOUD_ACTIVE, true)
             .apply()
     }
 

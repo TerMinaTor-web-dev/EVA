@@ -41,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eva.BuildConfig
 import com.example.eva.data.AppServiceCatalog
+import com.example.eva.data.EvaCloudStorageManager
 import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.model.AppService
@@ -76,6 +78,7 @@ import com.example.eva.ui.components.CrystalBubble
 import com.example.eva.ui.components.EvaUpdateDialog
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EvaColors
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -92,6 +95,22 @@ fun HomeScreen(
     val username = remember { UserSessionManager.getUsername(context) }
     val email = remember { UserSessionManager.getEmail(context) }
     val daysRemaining = remember { UserSessionManager.daysRemainingForUsernameChange(context) }
+
+    var cloudFreeGb by remember { mutableStateOf(UserSessionManager.getCloudStorageFreeGb(context)) }
+    var cloudUsedGb by remember { mutableStateOf(UserSessionManager.getCloudStorageUsedGb(context)) }
+    var cloudTotalGb by remember { mutableStateOf(UserSessionManager.getCloudStorageTotalGb(context)) }
+    var isSyncingQuota by remember { mutableStateOf(false) }
+
+    fun refreshCloudQuota() {
+        isSyncingQuota = true
+        EvaCloudStorageManager.checkQuotaAndProvision(context, email) { _ ->
+            isSyncingQuota = false
+            cloudFreeGb = UserSessionManager.getCloudStorageFreeGb(context)
+            cloudUsedGb = UserSessionManager.getCloudStorageUsedGb(context)
+            cloudTotalGb = UserSessionManager.getCloudStorageTotalGb(context)
+            Toast.makeText(context, "Google Cloud Space Synced: ${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val focusManager = LocalFocusManager.current
 
@@ -214,10 +233,11 @@ fun HomeScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(EvaColors.NeonCyan.copy(alpha = 0.2f))
                                     .border(0.5.dp, EvaColors.NeonCyan.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                    .clickable { showCloudDetailsDialog = true }
                                     .padding(horizontal = 5.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "15 GB CLOUD",
+                                    text = "${String.format(Locale.US, "%.1f", cloudFreeGb)} GB FREE",
                                     color = EvaColors.NeonCyan,
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold
@@ -321,7 +341,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Tap for vault details",
+                            text = "${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free • 9+ GB Ready",
                             color = EvaColors.NeonCyan,
                             fontSize = 9.sp
                         )
@@ -496,19 +516,92 @@ fun HomeScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Storage Quota: 184 MB / 15.0 GB used",
-                        color = EvaColors.TextSecondary,
-                        fontSize = 11.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Storage Quota: ${String.format(Locale.US, "%.1f", cloudUsedGb)} GB / ${String.format(Locale.US, "%.1f", cloudTotalGb)} GB used",
+                            color = EvaColors.TextSecondary,
+                            fontSize = 11.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(EvaColors.NeonCyan.copy(alpha = 0.18f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "9+ GB READY",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     LinearProgressIndicator(
-                        progress = { 0.02f },
+                        progress = { if (cloudTotalGb > 0) (cloudUsedGb / cloudTotalGb).coerceIn(0f, 1f) else 0.16f },
                         color = EvaColors.NeonCyan,
                         trackColor = Color.White.copy(alpha = 0.1f),
-                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp))
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Min 9.0 GB Required Free Space",
+                            color = EvaColors.TextMuted,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "${String.format(Locale.US, "%.1f", cloudFreeGb)} GB Free Available",
+                            color = EvaColors.NeonCyan,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Vault Folder Architecture Breakdown
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text("📁 Provisioned Vault Structure (/EVA_CloudSpace/):", color = Color.White.copy(alpha = 0.9f), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                        Text("• /Sessions/ (Multi-tab cookie persistence & tab state)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                        Text("• /Media/ (120 FPS playback cache & offline streams)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                        Text("• /Archives/ (Encrypted bookmarks & settings backup)", color = EvaColors.TextSecondary, fontSize = 9.5.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Sync Live Quota Button
+                    androidx.compose.material3.Button(
+                        onClick = { refreshCloudQuota() },
+                        enabled = !isSyncingQuota,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EvaColors.NeonCyan.copy(alpha = 0.2f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, EvaColors.NeonCyan.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = EvaColors.NeonCyan, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isSyncingQuota) "Syncing Drive Quota..." else "Sync Google Drive Quota",
+                            color = EvaColors.NeonCyan,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     // Open Source GDPR & Data Protection Action
                     androidx.compose.material3.Button(

@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "1.7",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.7_Release.apk",
-  "changelog": "YouTube Fullscreen Auto-Switch to Landscape, Bezel-to-bezel Immersive Theater Mode, and Screen Awake Lock during video playback."
+  "versionCode": 9,
+  "versionName": "1.8",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk",
+  "changelog": "Google Drive 15 GB Cloud Storage Backbone & 9+ GB Minimum Free Space Quota Enforcement Engine, personal /EVA_CloudSpace/ vault folder architecture (Sessions, Media, Archives), and real-time cloud storage quota verification."
 }

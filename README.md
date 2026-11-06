@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.7_Release.apk">
-    <img src="https://img.shields.io/badge/Download%20APK-v1.7%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
+  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk">
+    <img src="https://img.shields.io/badge/Download%20APK-v1.8%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
   </a>
 </p>
 
@@ -33,13 +33,13 @@
 
 You can download and install the official signed release APK directly on any Android device:
 
-* **[Download EVA_v1.7_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.7_Release.apk)**
+* **[Download EVA_v1.8_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.8_Release.apk)**
   * **Architecture:** Universal (ARM64, ARMv7, x86_64)
   * **Min Android:** Android 8.0 (Oreo / API 26)
   * **Target Android:** Android 16 (API 36)
   * **Signature:** APK Signature Scheme v2 (Signed with official 28-year release certificate)
   * **Security:** Hardened against root exploits, Frida/Xposed hooks, overlay tapjacking, and MITM attacks.
-* **Legacy Releases:** [EVA_v1.6_Release.apk](release/EVA_v1.6_Release.apk) | [EVA_v1.5_Release.apk](release/EVA_v1.5_Release.apk) | [EVA_v1.4_Release.apk](release/EVA_v1.4_Release.apk) | [EVA_v1.3_Release.apk](release/EVA_v1.3_Release.apk) | [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
+* **Legacy Releases:** [EVA_v1.7_Release.apk](release/EVA_v1.7_Release.apk) | [EVA_v1.6_Release.apk](release/EVA_v1.6_Release.apk) | [EVA_v1.5_Release.apk](release/EVA_v1.5_Release.apk) | [EVA_v1.4_Release.apk](release/EVA_v1.4_Release.apk) | [EVA_v1.3_Release.apk](release/EVA_v1.3_Release.apk) | [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
 
 ---
 
@@ -48,6 +48,9 @@ You can download and install the official signed release APK directly on any And
 Modern mobile operating systems force users to install dozens of heavy, background-churning applications that consume gigabytes of storage, drain battery through persistent telemetry, and clutter the device.
 
 **EVA** unifies your essential digital experiences—**Instagram, WhatsApp Web, YouTube, YouTube Music, Spotify, LinkedIn, Facebook, X (Twitter), Reddit, and any custom web service**—into one cohesive, ultra-responsive native container with:
+- **Google Drive 15 GB Cloud Storage Backbone**: Secure personal cloud space linked to user Google Identity provisioning `/EVA_CloudSpace/` with structured subdirectories: `/Sessions/` (multi-tab cookie persistence & memory sync), `/Media/` (120 FPS video streaming cache & audio buffers), and `/Archives/` (encrypted bookmarks & state exports).
+- **9+ GB Minimum Free Space Quota Enforcement Engine**: Evaluates Google Drive `storageQuota` limit and usage metrics. Enforces that Available Free Space $\ge 9.0$ GB; blocks installation/vault initialization with exact deficit analytics and clear resolution guidance if free storage is under 9 GB.
+- **YouTube Fullscreen Auto-Switch to Landscape**: True immersive theater mode with touch-aware play/pause gesture tracking, sensor landscape orientation lock, and screen wake lock during video playback.
 - **0ms Instant App Switching**: Multi-tab in-memory pooling with zero network reloading between tabs.
 - **Android Quick Settings Media Mini-Player**: Full `MediaSessionCompat` integration with `androidx.media.app.NotificationCompat.MediaStyle` rendering the native system media card with waveform seekbar and playback controls in notifications and lock screen.
 - **Gemini Context-Aware PiP**: Smart cognitive decision engine that intelligently activates PiP only for video streaming (YouTube, video streams) while suppressing PiP for social feeds (Instagram, Reddit, LinkedIn, Facebook) to prevent screen obstruction.
