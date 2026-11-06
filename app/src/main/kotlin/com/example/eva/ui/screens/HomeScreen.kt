@@ -80,6 +80,9 @@ import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.diagnostics.EvaDiagnosticsManager
 import com.example.eva.model.AppService
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import com.example.eva.ui.components.BentoHeroCard
+import com.example.eva.ui.components.BentoServiceCard
 import com.example.eva.ui.components.CrystalBubble
 import com.example.eva.ui.components.EvaUpdateDialog
 import com.example.eva.ui.components.EvaWebViewPool
@@ -387,24 +390,32 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Universal Omnibox
+            // 3. Modern Cybernetic Omnibox
             OutlinedTextField(
                 value = omniQuery,
                 onValueChange = { omniQuery = it },
                 placeholder = {
                     Text(
-                        text = "Search or enter any web URL...",
+                        text = "Search 10+ apps or enter URL...",
                         color = EvaColors.TextMuted,
                         fontSize = 12.5.sp
                     )
                 },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Web",
-                        tint = EvaColors.NeonCyan,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(EvaColors.NeonCyan.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = "Web",
+                            tint = EvaColors.NeonCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 },
                 trailingIcon = {
                     if (omniQuery.isNotBlank()) {
@@ -412,28 +423,32 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(EvaColors.NeonCyan.copy(alpha = 0.25f))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(EvaColors.NeonCyan, EvaColors.NeonPurple)
+                                    )
+                                )
                                 .clickable { executeOmniSearch() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = "Go",
-                                tint = EvaColors.NeonCyan,
-                                modifier = Modifier.size(16.dp)
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { executeOmniSearch() }),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = EvaColors.GlassSurface,
-                    unfocusedContainerColor = EvaColors.GlassSurface,
+                    focusedContainerColor = EvaColors.BentoCardBgElevated,
+                    unfocusedContainerColor = EvaColors.BentoCardBg,
                     focusedBorderColor = EvaColors.NeonCyan,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
                     cursorColor = EvaColors.NeonCyan
@@ -482,24 +497,32 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // 5. Floating Crystal Bubbles Grid with Authentic Brand Logos
+            // 5. Modern Cyber Bento Grid
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (selectedCategory == "All" && omniQuery.isBlank()) {
+                    val featured = allServices.firstOrNull { it.id == "youtube" } ?: allServices.first()
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        BentoHeroCard(
+                            featuredService = featured,
+                            onLaunch = { onSelectService(featured) }
+                        )
+                    }
+                }
+
                 itemsIndexed(filteredServices) { index, service ->
                     AnimatedVisibility(
                         visible = true,
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { 30 * (index + 1) })
+                        enter = fadeIn() + slideInVertically(initialOffsetY = { 20 * (index + 1) })
                     ) {
-                        CrystalBubble(
+                        BentoServiceCard(
                             service = service,
-                            index = index,
                             onClick = {
-                                // Instant in-app launch inside EVA's 120 FPS Native Hybrid Engine
                                 onSelectService(service)
                             }
                         )
