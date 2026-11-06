@@ -147,7 +147,7 @@ EVA is hardened against real-world mobile vulnerabilities in compliance with OWA
 
 3. **Install to Connected Device:**
    ```bash
-   adb install -r release/EVA_v1.0_Release.apk
+   adb install -r release/EVA_v3.0_Release.apk
    ```
 
 ---
@@ -159,18 +159,19 @@ Whenever you make code updates and want to release a new version to GitHub:
 ### Step 1: Bump the version (Optional)
 In `app/build.gradle.kts`:
 ```kotlin
-versionCode = 2
-versionName = "1.1"
+versionCode = 3
+versionName = "3.0"
 ```
 
 ### Step 2: Compile the new release APK
 ```powershell
-.\gradlew.bat assembleRelease
+.\gradlew.bat test assembleRelease
 ```
 
 ### Step 3: Copy the new APK to the release folder
 ```powershell
-Copy-Item "app\build\outputs\apk\release\app-release.apk" "release\EVA_v1.1_Release.apk" -Force
+Copy-Item "app\build\outputs\apk\release\app-release.apk" "release\EVA_v3.0_Release.apk" -Force
+Copy-Item "app\build\outputs\apk\release\app-release.apk" "release\EVA_Release.apk" -Force
 ```
 
 ### Step 4: Commit and push to GitHub

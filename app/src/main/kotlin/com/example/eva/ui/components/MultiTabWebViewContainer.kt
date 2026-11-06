@@ -666,7 +666,6 @@ object EvaWebViewPool {
                 settings.apply {
                     javaScriptEnabled = profile.allowJavaScript
                     domStorageEnabled = profile.allowDomStorage
-                    databaseEnabled = true
                     cacheMode = WebSettings.LOAD_DEFAULT
                     useWideViewPort = true
                     loadWithOverviewMode = true

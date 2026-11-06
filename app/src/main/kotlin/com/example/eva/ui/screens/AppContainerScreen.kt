@@ -8,6 +8,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebChromeClient
 import androidx.activity.compose.BackHandler
@@ -102,6 +103,7 @@ fun AppContainerScreen(
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
     fun enterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback) {
+        (view.parent as? ViewGroup)?.removeView(view)
         customFullscreenView = view
         customViewCallback = callback
         EvaWebViewPool.isFullscreenVideoActive = true
@@ -119,6 +121,7 @@ fun AppContainerScreen(
     }
 
     fun exitFullscreen() {
+        (customFullscreenView?.parent as? ViewGroup)?.removeView(customFullscreenView)
         customViewCallback?.onCustomViewHidden()
         customFullscreenView = null
         customViewCallback = null
@@ -211,7 +214,11 @@ fun AppContainerScreen(
                 .background(Color.Black)
         ) {
             AndroidView(
-                factory = { customFullscreenView!! },
+                factory = {
+                    val view = customFullscreenView!!
+                    (view.parent as? ViewGroup)?.removeView(view)
+                    view
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }

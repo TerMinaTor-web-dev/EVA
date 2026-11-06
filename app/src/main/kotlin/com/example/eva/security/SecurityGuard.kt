@@ -168,8 +168,9 @@ object SecurityGuard {
             BufferedReader(FileReader("/proc/self/status")).use { reader ->
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
-                    if (line?.startsWith("TracerPid:") == true) {
-                        val tracerPid = line!!.substringAfter(":").trim().toIntOrNull() ?: 0
+                    val currentLine = line
+                    if (currentLine != null && currentLine.startsWith("TracerPid:")) {
+                        val tracerPid = currentLine.substringAfter(":").trim().toIntOrNull() ?: 0
                         if (tracerPid > 0) {
                             issues.add("Process traced by external PID: $tracerPid")
                             debugged = true
