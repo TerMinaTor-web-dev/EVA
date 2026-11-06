@@ -15,6 +15,8 @@ import com.example.eva.ui.components.EvaWebViewPool
  *   App A automatically pauses and yields priority to App B.
  * - Auto-Resume History: When App B pauses, finishes, or is muted, App A automatically
  *   resumes playing in the background right where it left off!
+ * - Real-Time Title & Artist Resolution: Extracts track names and artists natively from
+ *   document title changes and HTML5 metadata.
  * - Zero Thermal Waste: Relinquishes locks and coordinates pause state across all WebViews.
  */
 object EvaMediaCoordinator {
@@ -105,6 +107,72 @@ object EvaMediaCoordinator {
                     activeAudioServiceId = null
                     EvaMediaPlaybackService.setPlayingState(context, false, positionMs, durationMs)
                 }
+            }
+        }
+    }
+
+    /**
+     * Called by native Android WebChromeClient when the document/window title updates.
+     * Extracts exact song title and artist from all standard web player titles.
+     */
+    fun onDocumentTitleChanged(
+        context: Context,
+        serviceId: String,
+        rawTitle: String
+    ) {
+        val clean = rawTitle.trim()
+        if (clean.isBlank()) return
+
+        var title = clean
+        var artist = ""
+
+        // Strip web service title watermarks
+        val suffixes = listOf(
+            " - YouTube Music",
+            " | Spotify",
+            " - Spotify",
+            " - YouTube",
+            " • Spotify",
+            " / X",
+            " | LinkedIn",
+            " - Reddit",
+            " | Facebook"
+        )
+        for (suffix in suffixes) {
+            if (title.endsWith(suffix, ignoreCase = true)) {
+                title = title.dropLast(suffix.length).trim()
+            }
+        }
+
+        // Parse "Title - Artist" or "Title • Artist"
+        if (title.contains(" • ")) {
+            val parts = title.split(" • ", limit = 2)
+            title = parts[0].trim()
+            artist = parts.getOrNull(1)?.trim() ?: ""
+        } else if (title.contains(" - ")) {
+            val parts = title.split(" - ", limit = 2)
+            title = parts[0].trim()
+            artist = parts.getOrNull(1)?.trim() ?: ""
+        }
+
+        val service = AppServiceCatalog.getServiceById(serviceId)
+        val serviceName = service?.name ?: "EVA Media"
+        val displayArtist = if (artist.isNotBlank()) artist else serviceName
+
+        // Don't update if it's just the default app name like "YouTube Music" or "Spotify"
+        if (title.isNotBlank() &&
+            !title.equals("YouTube Music", ignoreCase = true) &&
+            !title.equals("Spotify", ignoreCase = true) &&
+            !title.equals("YouTube", ignoreCase = true)
+        ) {
+            mainHandler.post {
+                EvaMediaPlaybackService.updateTrack(
+                    context = context,
+                    serviceId = serviceId,
+                    serviceName = serviceName,
+                    artist = displayArtist,
+                    title = title
+                )
             }
         }
     }

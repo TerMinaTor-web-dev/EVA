@@ -130,15 +130,26 @@ class EvaMediaPlaybackService : Service() {
             startServiceSafely(context, intent)
         }
 
-        fun updateTrack(context: Context, serviceId: String, artist: String, title: String) {
+        fun updateTrack(
+            context: Context,
+            serviceId: String,
+            serviceName: String,
+            artist: String,
+            title: String
+        ) {
             activeServiceId = serviceId
             val intent = Intent(context, EvaMediaPlaybackService::class.java).apply {
                 action = ACTION_UPDATE_TRACK
                 putExtra(EXTRA_SERVICE_ID, serviceId)
-                putExtra(EXTRA_SERVICE_NAME, artist)
+                putExtra(EXTRA_SERVICE_NAME, serviceName)
+                putExtra(EXTRA_ARTIST, artist)
                 putExtra(EXTRA_TITLE, title)
             }
             startServiceSafely(context, intent)
+        }
+
+        fun updateTrack(context: Context, serviceId: String, artist: String, title: String) {
+            updateTrack(context, serviceId, "EVA Media", artist, title)
         }
 
         fun stopPlayback(context: Context) {
@@ -390,15 +401,17 @@ class EvaMediaPlaybackService : Service() {
             ACTION_UPDATE_TRACK -> {
                 val serviceName = intent.getStringExtra(EXTRA_SERVICE_NAME) ?: currentServiceName
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle
+                val artist = intent.getStringExtra(EXTRA_ARTIST) ?: currentArtist
                 val serviceId = intent.getStringExtra(EXTRA_SERVICE_ID) ?: activeServiceId
                 activeServiceId = serviceId
 
                 currentServiceName = serviceName
                 currentTitle = title
+                currentArtist = artist
                 isPlaying = true
 
                 acquireLocks()
-                updateMetadata(serviceName, title, currentArtist, currentDurationMs, currentArtworkBitmap)
+                updateMetadata(serviceName, title, artist, currentDurationMs, currentArtworkBitmap)
                 updatePlaybackState(PlaybackStateCompat.STATE_PLAYING, currentPositionMs, currentDurationMs)
                 refreshNotification()
             }

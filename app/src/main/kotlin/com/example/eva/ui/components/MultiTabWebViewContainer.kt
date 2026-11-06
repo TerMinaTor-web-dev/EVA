@@ -127,24 +127,42 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
             }
         }
         if (!title) {
-            var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title');
+            var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title, ytmusic-player-bar .content-info-wrapper .title');
             if (ytTitle) title = ytTitle.textContent.trim();
         }
         if (!artist) {
-            var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar');
+            var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar, ytmusic-player-bar .subtitle, ytmusic-player-bar .byline a');
             if (ytArtist) artist = ytArtist.textContent.trim();
         }
         if (!title) {
-            var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"]');
+            var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"], [data-testid="now-playing-widget"] [data-testid="context-item-info-title"] a');
             if (spTitle) title = spTitle.textContent.trim();
         }
         if (!artist) {
-            var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"]');
+            var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"], [data-testid="now-playing-widget"] [data-testid="context-item-info-subtitles"] a');
             if (spArtist) artist = spArtist.textContent.trim();
         }
         if (!title) {
             var ytMainTitle = document.querySelector('h1.ytd-watch-metadata, .slim-video-metadata-title');
             if (ytMainTitle) title = ytMainTitle.textContent.trim();
+        }
+        if (!title && document.title) {
+            var docT = document.title;
+            var suffixes = [' - YouTube Music', ' | Spotify', ' - Spotify', ' - YouTube', ' • Spotify'];
+            for (var s = 0; s < suffixes.length; s++) {
+                docT = docT.replace(suffixes[s], '');
+            }
+            if (docT.indexOf(' - ') !== -1) {
+                var p = docT.split(' - ');
+                title = p[0].trim();
+                if (!artist && p[1]) artist = p[1].trim();
+            } else if (docT.indexOf(' • ') !== -1) {
+                var p2 = docT.split(' • ');
+                title = p2[0].trim();
+                if (!artist && p2[1]) artist = p2[1].trim();
+            } else {
+                title = docT.trim();
+            }
         }
         return { title: title, artist: artist, artwork: artwork };
     }
@@ -342,6 +360,7 @@ class EvaMediaBridge(
             EvaMediaPlaybackService.updateTrack(
                 context = context,
                 serviceId = serviceId,
+                serviceName = defaultServiceName,
                 artist = cleanArtist,
                 title = cleanTitle
             )
@@ -468,7 +487,10 @@ object EvaWebViewPool {
 
                     override fun onReceivedTitle(view: WebView?, title: String?) {
                         super.onReceivedTitle(view, title)
-                        if (!title.isNullOrBlank()) onTitleChanged(title)
+                        if (!title.isNullOrBlank()) {
+                            onTitleChanged(title)
+                            EvaMediaCoordinator.onDocumentTitleChanged(context, service.id, title)
+                        }
                     }
 
                     override fun onPermissionRequest(request: PermissionRequest?) {
@@ -590,6 +612,9 @@ object EvaWebViewPool {
                         cookieManager.flush()
                         val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
                         view?.evaluateJavascript(script, null)
+                        view?.title?.let { t ->
+                            EvaMediaCoordinator.onDocumentTitleChanged(context, service.id, t)
+                        }
                     }
                 }
 

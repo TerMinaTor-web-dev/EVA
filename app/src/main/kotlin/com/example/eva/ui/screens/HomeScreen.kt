@@ -1,5 +1,6 @@
 package com.example.eva.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -66,10 +67,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.eva.BuildConfig
 import com.example.eva.data.AppServiceCatalog
+import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.model.AppService
 import com.example.eva.ui.components.CrystalBubble
+import com.example.eva.ui.components.EvaUpdateDialog
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EvaColors
 
@@ -83,6 +87,7 @@ fun HomeScreen(
     var omniQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
     var showCloudDetailsDialog by remember { mutableStateOf(false) }
+    var manualUpdate by remember { mutableStateOf<EvaUpdateManager.UpdateInfo?>(null) }
 
     val username = remember { UserSessionManager.getUsername(context) }
     val email = remember { UserSessionManager.getEmail(context) }
@@ -518,6 +523,26 @@ fun HomeScreen(
                     ) {
                         Text("Erase Browsing Data & Reset Cache", color = Color(0xFFFF8A80), fontSize = 11.5.sp)
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // GitHub Auto-Update Checker Button
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showCloudDetailsDialog = false
+                            EvaUpdateManager.checkForUpdates(context, force = true) { update ->
+                                if (update != null) {
+                                    manualUpdate = update
+                                } else {
+                                    Toast.makeText(context, "EVA is up-to-date! (v${BuildConfig.VERSION_NAME})", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Check for GitHub Updates", color = EvaColors.NeonCyan, fontSize = 11.5.sp)
+                    }
                 }
             },
             confirmButton = {
@@ -527,6 +552,13 @@ fun HomeScreen(
             },
             containerColor = Color(0xFF101320),
             shape = RoundedCornerShape(18.dp)
+        )
+    }
+
+    if (manualUpdate != null) {
+        EvaUpdateDialog(
+            updateInfo = manualUpdate!!,
+            onDismiss = { manualUpdate = null }
         )
     }
 }

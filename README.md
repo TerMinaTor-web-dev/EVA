@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.3_Release.apk">
-    <img src="https://img.shields.io/badge/Download%20APK-v1.3%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
+  <a href="https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.4_Release.apk">
+    <img src="https://img.shields.io/badge/Download%20APK-v1.4%20Production%20(1.5MB)-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download Release APK" />
   </a>
 </p>
 
@@ -33,13 +33,13 @@
 
 You can download and install the official signed release APK directly on any Android device:
 
-* **[Download EVA_v1.3_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.3_Release.apk)**
+* **[Download EVA_v1.4_Release.apk (1.5 MB)](https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.4_Release.apk)**
   * **Architecture:** Universal (ARM64, ARMv7, x86_64)
   * **Min Android:** Android 8.0 (Oreo / API 26)
   * **Target Android:** Android 16 (API 36)
   * **Signature:** APK Signature Scheme v2 (Signed with official 28-year release certificate)
   * **Security:** Hardened against root exploits, Frida/Xposed hooks, overlay tapjacking, and MITM attacks.
-* **Legacy Releases:** [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
+* **Legacy Releases:** [EVA_v1.3_Release.apk](release/EVA_v1.3_Release.apk) | [EVA_v1.2_Release.apk](release/EVA_v1.2_Release.apk) | [EVA_v1.1_Release.apk](release/EVA_v1.1_Release.apk) | [EVA_v1.0_Release.apk](release/EVA_v1.0_Release.apk)
 
 ---
 

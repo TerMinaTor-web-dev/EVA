@@ -1,6 +1,7 @@
 package com.example.eva
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -10,8 +11,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.eva.data.AppServiceCatalog
+import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.ui.components.EvaAiSheet
+import com.example.eva.ui.components.EvaUpdateDialog
 import com.example.eva.ui.screens.AppContainerScreen
 import com.example.eva.ui.screens.HomeScreen
 import com.example.eva.ui.screens.OnboardingScreen
@@ -24,6 +27,13 @@ fun MainNavigation() {
     }
     val backStack = rememberNavBackStack(initialRoute)
     var showHomeAiCopilot by remember { mutableStateOf(false) }
+    var pendingUpdate by remember { mutableStateOf<EvaUpdateManager.UpdateInfo?>(null) }
+
+    LaunchedEffect(Unit) {
+        EvaUpdateManager.checkForUpdates(context, force = false) { update ->
+            pendingUpdate = update
+        }
+    }
 
     NavDisplay(
         backStack = backStack,
@@ -67,6 +77,13 @@ fun MainNavigation() {
             currentPageTitle = "EVA Home Hub",
             currentUrl = "eva://hub",
             onDismiss = { showHomeAiCopilot = false }
+        )
+    }
+
+    if (pendingUpdate != null) {
+        EvaUpdateDialog(
+            updateInfo = pendingUpdate!!,
+            onDismiss = { pendingUpdate = null }
         )
     }
 }

@@ -1,0 +1,6 @@
+{
+  "versionCode": 5,
+  "versionName": "1.4",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.4_Release.apk",
+  "changelog": "Instant notification track title and artist synchronization, GitHub in-app auto-update checker with 24h snooze, and thermal zero-idle optimization."
+}
