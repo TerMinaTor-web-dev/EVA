@@ -5,7 +5,6 @@ import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -48,10 +47,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.eva.model.AppService
+import com.example.eva.service.EvaMediaCoordinator
 import com.example.eva.service.EvaMediaPlaybackService
 import com.example.eva.ui.theme.EvaColors
 
@@ -62,27 +61,27 @@ private const val DESKTOP_USER_AGENT =
 private const val CHROME_MOBILE_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36"
 
-// Comprehensive Background Audio Keep-Alive & Real-time Metadata Scraping Engine
+// Event-driven, thermal-optimized background audio keep-alive & multi-app media scraper
 private const val BACKGROUND_AUDIO_SCRIPT = """
 (function() {
     if (window.__evaEngineInitialized) return;
     window.__evaEngineInitialized = true;
     window.__evaExplicitUserPause = false;
+    window.__evaServiceId = '%SERVICE_ID%';
 
-    // 1. Intercept HTMLMediaElement.prototype.pause: Block automatic background pauses
+    // 1. Intercept HTMLMediaElement.prototype.pause: Block Chromium background pauses
     try {
         var originalPause = HTMLMediaElement.prototype.pause;
         HTMLMediaElement.prototype.pause = function() {
             if (window.__evaExplicitUserPause === true) {
                 return originalPause.apply(this, arguments);
             }
-            // If pause is triggered by WebKit/Chromium due to backgrounding, immediately re-engage play
             var media = this;
             setTimeout(function() {
                 if (window.__evaExplicitUserPause !== true) {
                     media.play().catch(function(){});
                 }
-            }, 20);
+            }, 30);
             return Promise.resolve();
         };
     } catch (e) {}
@@ -95,7 +94,7 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
         document.hasFocus = function() { return true; };
     } catch (e) {}
 
-    // 3. Suppress blur and visibility events from reaching YouTube/Spotify pause listeners
+    // 3. Suppress blur and visibility events
     ['visibilitychange', 'webkitvisibilitychange', 'blur', 'focusout', 'pagehide'].forEach(function(evt) {
         window.addEventListener(evt, function(e) { e.stopImmediatePropagation(); }, true);
         document.addEventListener(evt, function(e) { e.stopImmediatePropagation(); }, true);
@@ -114,60 +113,157 @@ private const val BACKGROUND_AUDIO_SCRIPT = """
         } catch (e) {}
     }
 
-    // 5. Watchdog: Auto-resume active stream if paused unexpectedly
-    setInterval(function() {
-        if (window.__evaExplicitUserPause !== true) {
-            var v = document.querySelector('video') || document.querySelector('audio');
-            if (v && v.paused && v.currentTime > 0) {
-                v.play().catch(function(){});
+    // Helper: Extract current track info
+    function getTrackMetadata() {
+        var title = '';
+        var artist = '';
+        var artwork = '';
+
+        if (navigator.mediaSession && navigator.mediaSession.metadata) {
+            title = navigator.mediaSession.metadata.title || '';
+            artist = navigator.mediaSession.metadata.artist || '';
+            if (navigator.mediaSession.metadata.artwork && navigator.mediaSession.metadata.artwork.length > 0) {
+                artwork = navigator.mediaSession.metadata.artwork[0].src || '';
             }
         }
-    }, 1000);
-
-    // 6. Real-time Track Title & Artist Observer
-    function notifyTrackUpdate() {
-        try {
-            var title = '';
-            var artist = '';
-            var artwork = '';
-
-            // Standard HTML5 MediaSession API
-            if (navigator.mediaSession && navigator.mediaSession.metadata) {
-                title = navigator.mediaSession.metadata.title || '';
-                artist = navigator.mediaSession.metadata.artist || '';
-                if (navigator.mediaSession.metadata.artwork && navigator.mediaSession.metadata.artwork.length > 0) {
-                    artwork = navigator.mediaSession.metadata.artwork[0].src || '';
-                }
-            }
-
-            // YouTube Music Specific Player Bar Selectors
-            if (!title) {
-                var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title');
-                if (ytTitle) title = ytTitle.textContent.trim();
-            }
-            if (!artist) {
-                var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar');
-                if (ytArtist) artist = ytArtist.textContent.trim();
-            }
-
-            // Spotify Web Player Selectors
-            if (!title) {
-                var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"]');
-                if (spTitle) title = spTitle.textContent.trim();
-            }
-            if (!artist) {
-                var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"]');
-                if (spArtist) artist = spArtist.textContent.trim();
-            }
-
-            // Dispatch to Native Android Media Bridge
-            if (title && window.EvaMediaBridge) {
-                window.EvaMediaBridge.onTrackChanged(title, artist, artwork);
-            }
-        } catch (e) {}
+        if (!title) {
+            var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title');
+            if (ytTitle) title = ytTitle.textContent.trim();
+        }
+        if (!artist) {
+            var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar');
+            if (ytArtist) artist = ytArtist.textContent.trim();
+        }
+        if (!title) {
+            var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"]');
+            if (spTitle) title = spTitle.textContent.trim();
+        }
+        if (!artist) {
+            var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"]');
+            if (spArtist) artist = spArtist.textContent.trim();
+        }
+        if (!title) {
+            var ytMainTitle = document.querySelector('h1.ytd-watch-metadata, .slim-video-metadata-title');
+            if (ytMainTitle) title = ytMainTitle.textContent.trim();
+        }
+        return { title: title, artist: artist, artwork: artwork };
     }
 
-    setInterval(notifyTrackUpdate, 1500);
+    // 5. Intercept navigator.mediaSession.metadata setter for ZERO-POLLING instant track updates
+    try {
+        if (navigator.mediaSession) {
+            var metaDesc = Object.getOwnPropertyDescriptor(MediaSession.prototype, 'metadata');
+            if (metaDesc && metaDesc.set) {
+                Object.defineProperty(navigator.mediaSession, 'metadata', {
+                    set: function(meta) {
+                        metaDesc.set.call(this, meta);
+                        if (meta && window.EvaMediaBridge) {
+                            var title = meta.title || '';
+                            var artist = meta.artist || '';
+                            var artwork = (meta.artwork && meta.artwork.length > 0) ? meta.artwork[0].src : '';
+                            window.EvaMediaBridge.onTrackChanged(title, artist, artwork);
+                        }
+                    },
+                    get: function() { return metaDesc.get.call(this); }
+                });
+            }
+        }
+    } catch (e) {}
+
+    // 6. Zero-Idle Event-Driven Media Hooks for Multi-App Audio Concurrency & Animation
+    function hookMediaElement(el) {
+        if (!el || el.__evaHooked) return;
+        el.__evaHooked = true;
+
+        function notifyPlay() {
+            var isAudible = (!el.muted && el.volume > 0);
+            if (!isAudible) return; // Muted videos (e.g. silent Instagram/Reddit feeds) do not pause music!
+
+            var meta = getTrackMetadata();
+            var dur = (el.duration && !isNaN(el.duration) && isFinite(el.duration)) ? el.duration : 0;
+            var pos = (el.currentTime && !isNaN(el.currentTime)) ? el.currentTime : 0;
+
+            if (window.EvaMediaBridge) {
+                window.EvaMediaBridge.onMediaPlayStarted(
+                    window.__evaServiceId,
+                    meta.title,
+                    meta.artist,
+                    meta.artwork,
+                    dur,
+                    pos
+                );
+            }
+        }
+
+        function notifyPause() {
+            var dur = (el.duration && !isNaN(el.duration) && isFinite(el.duration)) ? el.duration : 0;
+            var pos = (el.currentTime && !isNaN(el.currentTime)) ? el.currentTime : 0;
+
+            if (window.EvaMediaBridge) {
+                window.EvaMediaBridge.onMediaPlayPaused(
+                    window.__evaServiceId,
+                    dur,
+                    pos
+                );
+            }
+        }
+
+        el.addEventListener('play', notifyPlay);
+        el.addEventListener('playing', notifyPlay);
+        el.addEventListener('pause', notifyPause);
+        el.addEventListener('ended', notifyPause);
+
+        el.addEventListener('volumechange', function() {
+            if (!el.muted && el.volume > 0 && !el.paused) {
+                notifyPlay();
+            } else if ((el.muted || el.volume === 0) && !el.paused) {
+                notifyPause();
+            }
+        });
+
+        // Throttled timeupdate for seekbar animation (fires at most once every 3.5s)
+        var lastTimeReport = 0;
+        el.addEventListener('timeupdate', function() {
+            var now = Date.now();
+            if (now - lastTimeReport > 3500 && !el.paused && !el.muted && el.volume > 0) {
+                lastTimeReport = now;
+                var dur = (el.duration && !isNaN(el.duration) && isFinite(el.duration)) ? el.duration : 0;
+                var pos = (el.currentTime && !isNaN(el.currentTime)) ? el.currentTime : 0;
+                if (window.EvaMediaBridge) {
+                    window.EvaMediaBridge.onPlaybackPosition(window.__evaServiceId, dur, pos);
+                }
+            }
+        });
+    }
+
+    // Attach to existing media elements
+    var initialMedia = document.querySelectorAll('video, audio');
+    for (var i = 0; i < initialMedia.length; i++) {
+        hookMediaElement(initialMedia[i]);
+    }
+
+    // Observe future dynamically inserted media elements with zero idle overhead
+    try {
+        var observer = new MutationObserver(function(mutations) {
+            for (var m = 0; m < mutations.length; m++) {
+                var added = mutations[m].addedNodes;
+                for (var n = 0; n < added.length; n++) {
+                    var node = added[n];
+                    if (node.nodeType === 1) {
+                        if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
+                            hookMediaElement(node);
+                        } else if (node.querySelectorAll) {
+                            var nested = node.querySelectorAll('video, audio');
+                            for (var k = 0; k < nested.length; k++) {
+                                hookMediaElement(nested[k]);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
 })();
 """
 
@@ -177,6 +273,65 @@ class EvaMediaBridge(
     private val defaultServiceName: String
 ) {
     private var lastTrack = ""
+
+    @JavascriptInterface
+    fun onMediaPlayStarted(
+        serviceId: String,
+        title: String,
+        artist: String,
+        artworkUrl: String,
+        durationSec: Double,
+        positionSec: Double
+    ) {
+        val cleanTitle = title.trim()
+        val cleanArtist = if (artist.isNotBlank()) artist.trim() else defaultServiceName
+        val durationMs = (durationSec * 1000).toLong().coerceAtLeast(0L)
+        val positionMs = (positionSec * 1000).toLong().coerceAtLeast(0L)
+
+        EvaMediaCoordinator.onMediaPlayStarted(
+            context = context,
+            serviceId = serviceId,
+            title = cleanTitle,
+            artist = cleanArtist,
+            artworkUrl = artworkUrl,
+            durationMs = durationMs,
+            positionMs = positionMs
+        )
+    }
+
+    @JavascriptInterface
+    fun onMediaPlayPaused(
+        serviceId: String,
+        durationSec: Double,
+        positionSec: Double
+    ) {
+        val durationMs = (durationSec * 1000).toLong().coerceAtLeast(0L)
+        val positionMs = (positionSec * 1000).toLong().coerceAtLeast(0L)
+
+        EvaMediaCoordinator.onMediaPlayPaused(
+            context = context,
+            serviceId = serviceId,
+            durationMs = durationMs,
+            positionMs = positionMs
+        )
+    }
+
+    @JavascriptInterface
+    fun onPlaybackPosition(
+        serviceId: String,
+        durationSec: Double,
+        positionSec: Double
+    ) {
+        val durationMs = (durationSec * 1000).toLong().coerceAtLeast(0L)
+        val positionMs = (positionSec * 1000).toLong().coerceAtLeast(0L)
+
+        EvaMediaCoordinator.onPlaybackPosition(
+            context = context,
+            serviceId = serviceId,
+            durationMs = durationMs,
+            positionMs = positionMs
+        )
+    }
 
     @JavascriptInterface
     fun onTrackChanged(title: String, artist: String, artworkUrl: String) {
@@ -426,13 +581,15 @@ object EvaWebViewPool {
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         url?.let(onUrlChanged)
-                        view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
+                        val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
+                        view?.evaluateJavascript(script, null)
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         cookieManager.flush()
-                        view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
+                        val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
+                        view?.evaluateJavascript(script, null)
                     }
                 }
 
@@ -497,6 +654,24 @@ object EvaWebViewPool {
             var btn = document.querySelector('#play-pause-button, button[data-testid="control-button-playpause"], .ytp-play-button');
             if (btn) { btn.click(); return true; }
             return false;
+        })();
+        """.trimIndent()
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                wv.evaluateJavascript(script, null)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun seekTo(serviceId: String?, positionMs: Long) {
+        val targetId = serviceId ?: activeServiceId
+        val wv = webViews[targetId] ?: webViews.values.firstOrNull() ?: return
+        val seconds = positionMs / 1000.0
+        val script = """
+        (function() {
+            var v = document.querySelector('video') || document.querySelector('audio');
+            if (v) { v.currentTime = $seconds; }
         })();
         """.trimIndent()
 
@@ -589,16 +764,13 @@ object EvaWebViewPool {
     fun clearAllDataAndCookies(context: Context) {
         Handler(Looper.getMainLooper()).post {
             try {
-                // Clear all webviews
                 webViews.values.forEach { it.destroy() }
                 webViews.clear()
 
-                // Clear all cookies
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.removeAllCookies(null)
                 cookieManager.flush()
 
-                // Clear web storage (localStorage, sessionStorage, IndexedDB)
                 WebStorage.getInstance().deleteAllData()
 
                 Toast.makeText(context, "All browsing data & cache erased securely.", Toast.LENGTH_SHORT).show()
@@ -708,6 +880,7 @@ fun MultiTabWebViewContainer(
                 // Adaptive Thermal Throttling & In-Memory Fast Swapping
                 for (i in 0 until frameLayout.childCount) {
                     val child = frameLayout.getChildAt(i)
+                    val childServiceId = child.tag as? String
                     if (child === activeWebView) {
                         child.visibility = View.VISIBLE
                         child.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -716,9 +889,10 @@ fun MultiTabWebViewContainer(
                         child.visibility = View.GONE
                         // Remove hardware layer to cool down GPU
                         child.setLayerType(View.LAYER_TYPE_NONE, null)
-                        // Never pause the active media tab (YouTube Music / Spotify) so audio streams continuously!
-                        val otherServiceId = child.tag as? String
-                        if (otherServiceId != "ytmusic" && otherServiceId != "spotify" && otherServiceId != EvaMediaPlaybackService.activeServiceId) {
+                        // Only keep the actively playing or waiting audio tab alive in background; pause all others to eliminate heat/battery drain
+                        val isActivelyPlayingAudio = (childServiceId == EvaMediaCoordinator.activeAudioServiceId ||
+                                childServiceId == EvaMediaCoordinator.pausedBackgroundServiceId)
+                        if (!isActivelyPlayingAudio && childServiceId != "ytmusic" && childServiceId != "spotify") {
                             (child as? WebView)?.onPause()
                         }
                     }
