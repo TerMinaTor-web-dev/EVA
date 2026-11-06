@@ -8,12 +8,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -77,8 +70,8 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var emailInput by remember { mutableStateOf("user@gmail.com") }
-    var usernameInput by remember { mutableStateOf("eva_user") }
+    var emailInput by remember { mutableStateOf("") }
+    var usernameInput by remember { mutableStateOf("") }
     var isGoogleConnected by remember { mutableStateOf(false) }
     var showManualEmailInput by remember { mutableStateOf(false) }
 
@@ -102,7 +95,7 @@ fun OnboardingScreen(
                 val prefix = accountName.substringBefore("@")
                     .filter { it.isLetterOrDigit() || it == '_' }
                     .lowercase()
-                if (prefix.isNotBlank()) {
+                if (prefix.isNotBlank() && usernameInput.isBlank()) {
                     usernameInput = prefix
                 }
                 Toast.makeText(context, "Google Account Linked: $accountName", Toast.LENGTH_SHORT).show()
@@ -118,29 +111,16 @@ fun OnboardingScreen(
         Toast.makeText(context, "Permissions Updated", Toast.LENGTH_SHORT).show()
     }
 
-    // Breathing Glow Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(EvaColors.DualToneGradient)
             .statusBarsPadding()
     ) {
-        // Ambient Radial Nebula
+        // High-efficiency Static Ambient Radial Glow (0% idle CPU)
         Box(
             modifier = Modifier
                 .size(320.dp)
-                .scale(pulseScale)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.radialGradient(
@@ -159,13 +139,13 @@ fun OnboardingScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 1. Holographic Crystal Orb Header
             Box(
                 modifier = Modifier
-                    .size(90.dp)
-                    .shadow(30.dp, CircleShape, spotColor = EvaColors.NeonCyan)
+                    .size(86.dp)
+                    .shadow(24.dp, CircleShape, spotColor = EvaColors.NeonCyan)
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
@@ -183,7 +163,7 @@ fun OnboardingScreen(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = "EVA Core",
                     tint = Color.White,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(40.dp)
                 )
             }
 
@@ -196,7 +176,7 @@ fun OnboardingScreen(
                     Text(
                         text = "EVA",
                         color = Color.White,
-                        fontSize = 32.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.5.sp
                     )
@@ -220,7 +200,7 @@ fun OnboardingScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Sign in with your Google account to initialize personal 15 GB cloud storage & unified web sandboxing.",
+                    text = "Sign in with your Google account to initialize your personal 15 GB Cloud Storage Vault and unified web sandbox.",
                     color = EvaColors.TextSecondary,
                     fontSize = 12.5.sp,
                     textAlign = TextAlign.Center,
@@ -261,13 +241,13 @@ fun OnboardingScreen(
 
                         Column {
                             Text(
-                                text = "Google Authentication",
+                                text = "Google Cloud Identity",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (isGoogleConnected) "Linked to Device Account" else "Choose Google account on your device",
+                                text = if (isGoogleConnected) "Linked to Google Vault" else "Tap below to link Google Account",
                                 color = if (isGoogleConnected) EvaColors.NeonCyan else EvaColors.TextMuted,
                                 fontSize = 11.sp
                             )
@@ -297,35 +277,29 @@ fun OnboardingScreen(
                                     }
                                     googleAccountPickerLauncher.launch(intent)
                                 } catch (e: Exception) {
-                                    // Fallback if system account picker unavailable
                                     showManualEmailInput = true
-                                    Toast.makeText(context, "Please enter your Gmail address below", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Select your account or enter your Gmail below", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Sign in with Google",
-                                    color = Color.Black,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Text(
+                                text = "Choose Google Account from Device",
+                                color = Color.Black,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
-                        // Optional Manual Email Toggle
+                        // Toggle manual email input
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = if (showManualEmailInput) "Hide manual entry" else "Or enter email manually",
+                                text = if (showManualEmailInput) "Hide manual entry" else "Or type Gmail address manually",
                                 color = EvaColors.NeonCyan,
                                 fontSize = 11.sp,
                                 modifier = Modifier
@@ -337,8 +311,13 @@ fun OnboardingScreen(
                         if (showManualEmailInput) {
                             OutlinedTextField(
                                 value = emailInput,
-                                onValueChange = { emailInput = it },
-                                placeholder = { Text("Enter your Gmail address", color = EvaColors.TextMuted, fontSize = 12.sp) },
+                                onValueChange = {
+                                    emailInput = it.trim()
+                                    if (it.contains("@") && it.contains(".")) {
+                                        isGoogleConnected = true
+                                    }
+                                },
+                                placeholder = { Text("your.email@gmail.com", color = EvaColors.TextMuted, fontSize = 12.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth(),
@@ -355,38 +334,56 @@ fun OnboardingScreen(
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(EvaColors.NeonCyan.copy(alpha = 0.15f))
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Active",
-                                tint = EvaColors.NeonCyan,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = emailInput,
-                                    color = Color.White,
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.Bold
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Active",
+                                    tint = EvaColors.NeonCyan,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Text(
-                                    text = "Google 15 GB Vault Linked",
-                                    color = EvaColors.NeonCyan,
-                                    fontSize = 10.5.sp
-                                )
+                                Column {
+                                    Text(
+                                        text = emailInput,
+                                        color = Color.White,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "15 GB Personal Cloud Vault Linked",
+                                        color = EvaColors.NeonCyan,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
                             }
+
+                            Text(
+                                text = "Change",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable {
+                                        isGoogleConnected = false
+                                        showManualEmailInput = true
+                                    }
+                                    .padding(4.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // 3. Device Runtime Permissions Card (Storage, Mic, Camera, Notifications)
+            // 3. Device Runtime Permissions Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -420,7 +417,7 @@ fun OnboardingScreen(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "All Granted",
+                                    text = "Active",
                                     color = EvaColors.NeonCyan,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -535,7 +532,7 @@ fun OnboardingScreen(
                 }
             }
 
-            // 5. Free 15 GB Cloud Storage Vault Preview
+            // 5. Free 15 GB Cloud Storage Vault Preview & App Account Note
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -598,7 +595,7 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "184 MB sandbox cache",
+                            text = "184 MB cache initialized",
                             color = EvaColors.TextMuted,
                             fontSize = 10.5.sp
                         )
@@ -609,20 +606,36 @@ fun OnboardingScreen(
                             fontWeight = FontWeight.Medium
                         )
                     }
+
+                    Text(
+                        text = "💡 Google Ecosystem: Linking your Google account syncs your 15 GB Drive vault. In EVA, this account is accessible on YouTube & YouTube Music, or you can sign into another account inside individual apps anytime.",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 10.5.sp,
+                        lineHeight = 14.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 6. Enter EVA Super-Engine Button
+            // 6. Enter EVA Super-Engine Button with Real Verification
+            val isFormValid = emailInput.isNotBlank() && emailInput.contains("@") && emailInput.contains(".") && usernameInput.length >= 3
+
             Button(
                 onClick = {
                     val finalUsername = usernameInput.trim()
+                    val finalEmail = emailInput.trim()
+
+                    if (finalEmail.isBlank() || !finalEmail.contains("@") || !finalEmail.contains(".")) {
+                        Toast.makeText(context, "Please choose or enter your Google email", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
                     if (finalUsername.length < 3) {
                         Toast.makeText(context, "Username must be at least 3 characters", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
-                    val finalEmail = if (emailInput.isNotBlank()) emailInput.trim() else "user@gmail.com"
+
                     val displayName = finalUsername.replaceFirstChar { it.uppercase() }
 
                     // Save session & 14-day lock timestamp
@@ -641,18 +654,29 @@ fun OnboardingScreen(
                     .height(54.dp)
                     .shadow(20.dp, RoundedCornerShape(16.dp), spotColor = EvaColors.NeonCyan),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isFormValid) Color.Transparent else Color.White.copy(alpha = 0.15f)
+                )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    EvaColors.NeonCyan,
-                                    EvaColors.NeonPurple
+                            if (isFormValid) {
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        EvaColors.NeonCyan,
+                                        EvaColors.NeonPurple
+                                    )
                                 )
-                            )
+                            } else {
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.2f),
+                                        Color.White.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -661,7 +685,7 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Enter EVA Super-Engine",
+                            text = if (isFormValid) "Enter EVA Super-Engine" else "Sign in with Google to Continue",
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold

@@ -9,15 +9,23 @@ import org.junit.Test
 class EvaPipDecisionEngineTest {
 
     @Test
-    fun youtube_triggersPiPApproval() {
+    fun youtube_triggersPiPApprovalOnlyWhenVideoActive() {
         val ytService = AppServiceCatalog.getById("youtube")
-        val decision = EvaPipDecisionEngine.evaluate(
+        // Video active in fullscreen -> PiP approved
+        val activeDecision = EvaPipDecisionEngine.evaluate(
+            activeService = ytService,
+            hasActiveVideo = true
+        )
+        assertTrue(activeDecision.allowPip)
+        assertEquals(16, activeDecision.numerator)
+        assertEquals(9, activeDecision.denominator)
+
+        // Video not active -> PiP suppressed to prevent blank white box
+        val inactiveDecision = EvaPipDecisionEngine.evaluate(
             activeService = ytService,
             hasActiveVideo = false
         )
-        assertTrue(decision.allowPip)
-        assertEquals(16, decision.numerator)
-        assertEquals(9, decision.denominator)
+        assertFalse(inactiveDecision.allowPip)
     }
 
     @Test
@@ -27,10 +35,10 @@ class EvaPipDecisionEngineTest {
         val linkedin = AppServiceCatalog.getById("linkedin")
         val reddit = AppServiceCatalog.getById("reddit")
 
-        assertFalse(EvaPipDecisionEngine.evaluate(insta).allowPip)
-        assertFalse(EvaPipDecisionEngine.evaluate(fb).allowPip)
-        assertFalse(EvaPipDecisionEngine.evaluate(linkedin).allowPip)
-        assertFalse(EvaPipDecisionEngine.evaluate(reddit).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(insta, hasActiveVideo = false).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(fb, hasActiveVideo = false).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(linkedin, hasActiveVideo = false).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(reddit, hasActiveVideo = false).allowPip)
     }
 
     @Test
@@ -38,16 +46,17 @@ class EvaPipDecisionEngineTest {
         val spotify = AppServiceCatalog.getById("spotify")
         val ytMusic = AppServiceCatalog.getById("ytmusic")
 
-        assertFalse(EvaPipDecisionEngine.evaluate(spotify).allowPip)
-        assertFalse(EvaPipDecisionEngine.evaluate(ytMusic).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(spotify, hasActiveVideo = false).allowPip)
+        assertFalse(EvaPipDecisionEngine.evaluate(ytMusic, hasActiveVideo = false).allowPip)
+        // Even if audio is playing in ytmusic, PiP is strictly disallowed
+        assertFalse(EvaPipDecisionEngine.evaluate(ytMusic, hasActiveVideo = true).allowPip)
     }
 
     @Test
     fun activeHtml5VideoInDom_grantsPiP() {
-        val insta = AppServiceCatalog.getById("instagram")
-        // If a video element is actively playing in DOM, PiP should be granted
+        val customVideo = AppServiceCatalog.getById("youtube")
         val decision = EvaPipDecisionEngine.evaluate(
-            activeService = insta,
+            activeService = customVideo,
             hasActiveVideo = true
         )
         assertTrue(decision.allowPip)

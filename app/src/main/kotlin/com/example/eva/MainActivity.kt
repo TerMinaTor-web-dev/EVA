@@ -60,9 +60,9 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Context-Aware Picture-in-Picture Trigger powered by EvaPipDecisionEngine.
-     * Selectively enters PiP only when video media is active (YouTube, video streams).
-     * Non-video feeds (Instagram, Reddit, LinkedIn, Facebook) and pure audio apps (Spotify)
-     * are suppressed from PiP to prevent UI obstruction.
+     * Selectively enters PiP ONLY when active full-screen video is rendering.
+     * Audio apps (YouTube Music, Spotify) and social feeds (Instagram, Reddit, LinkedIn)
+     * are suppressed from PiP to prevent blank white box overlays on the user's home screen.
      */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
             val currentService = AppServiceCatalog.getServiceById(EvaWebViewPool.activeServiceId)
             val decision = EvaPipDecisionEngine.evaluate(
                 activeService = currentService,
-                hasActiveVideo = false
+                hasActiveVideo = EvaWebViewPool.isFullscreenVideoActive
             )
 
             if (decision.allowPip) {

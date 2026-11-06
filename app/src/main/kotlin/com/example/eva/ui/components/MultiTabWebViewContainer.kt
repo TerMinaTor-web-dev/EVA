@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -12,6 +13,7 @@ import android.os.Environment
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.eva.model.AppService
@@ -50,19 +53,114 @@ import com.example.eva.service.EvaMediaPlaybackService
 import com.example.eva.ui.theme.EvaColors
 
 private const val DESKTOP_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-// Modern Chrome Mobile UA that avoids the restrictive '; wv' token so websites don't force 'Open in App'
+// Modern Chrome Mobile UA without '; wv' tag so Google/YouTube/Spotify allow standard sign-in and full responsive web app
 private const val CHROME_MOBILE_USER_AGENT =
-    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.127 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36"
+
+// Background Audio Bypass & Metadata Scraping Script
+private const val BACKGROUND_AUDIO_SCRIPT = """
+(function() {
+    // 1. Bypass YouTube / WebKit background pause
+    try {
+        Object.defineProperty(document, 'hidden', { get: function() { return false; }, configurable: true });
+        Object.defineProperty(document, 'visibilityState', { get: function() { return 'visible'; }, configurable: true });
+        document.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
+    } catch (e) {}
+
+    // 2. Real-time Track Title & Artist Observer
+    function notifyTrackUpdate() {
+        try {
+            var title = '';
+            var artist = '';
+            var artwork = '';
+
+            // Standard HTML5 MediaSession API
+            if (navigator.mediaSession && navigator.mediaSession.metadata) {
+                title = navigator.mediaSession.metadata.title || '';
+                artist = navigator.mediaSession.metadata.artist || '';
+                if (navigator.mediaSession.metadata.artwork && navigator.mediaSession.metadata.artwork.length > 0) {
+                    artwork = navigator.mediaSession.metadata.artwork[0].src || '';
+                }
+            }
+
+            // YouTube Music Specific Player Bar Selectors
+            if (!title) {
+                var ytTitle = document.querySelector('ytmusic-player-bar .title, .title.ytmusic-player-bar, .ytmusic-player-bar yt-formatted-string.title');
+                if (ytTitle) title = ytTitle.textContent.trim();
+            }
+            if (!artist) {
+                var ytArtist = document.querySelector('ytmusic-player-bar .byline, .byline.ytmusic-player-bar');
+                if (ytArtist) artist = ytArtist.textContent.trim();
+            }
+
+            // Spotify Web Player Selectors
+            if (!title) {
+                var spTitle = document.querySelector('[data-testid="now-playing-widget"] [data-testid="context-item-link"]');
+                if (spTitle) title = spTitle.textContent.trim();
+            }
+            if (!artist) {
+                var spArtist = document.querySelector('[data-testid="now-playing-widget"] [data-testid="track-info-artists"]');
+                if (spArtist) artist = spArtist.textContent.trim();
+            }
+
+            // Dispatch to Native Android Media Bridge
+            if (title && window.EvaMediaBridge) {
+                window.EvaMediaBridge.onTrackChanged(title, artist, artwork);
+            }
+        } catch (e) {}
+    }
+
+    if (!window.__evaTrackObserverAttached) {
+        window.__evaTrackObserverAttached = true;
+        setInterval(notifyTrackUpdate, 1500);
+    }
+})();
+"""
+
+class EvaMediaBridge(
+    private val context: Context,
+    private val serviceId: String,
+    private val defaultServiceName: String
+) {
+    private var lastTrack = ""
+
+    @JavascriptInterface
+    fun onTrackChanged(title: String, artist: String, artworkUrl: String) {
+        val cleanTitle = title.trim()
+        val cleanArtist = if (artist.isNotBlank()) artist.trim() else defaultServiceName
+        if (cleanTitle.isNotBlank() && cleanTitle != lastTrack) {
+            lastTrack = cleanTitle
+            EvaMediaPlaybackService.updateTrack(
+                context = context,
+                serviceId = serviceId,
+                artist = cleanArtist,
+                title = cleanTitle
+            )
+        }
+    }
+}
 
 object EvaWebViewPool {
     private val webViews = mutableMapOf<String, WebView>()
-    var activeServiceId: String = "instagram"
+    var activeServiceId: String = "ytmusic"
+    var isFullscreenVideoActive: Boolean = false
+
     private var onOpenFileChooserAction: ((ValueCallback<Array<Uri>>?, Intent) -> Unit)? = null
+    private var onCustomViewShowAction: ((View, WebChromeClient.CustomViewCallback) -> Unit)? = null
+    private var onCustomViewHideAction: (() -> Unit)? = null
 
     fun setOpenFileChooserHandler(handler: (ValueCallback<Array<Uri>>?, Intent) -> Unit) {
         onOpenFileChooserAction = handler
+    }
+
+    fun setCustomViewHandlers(
+        onShow: (View, WebChromeClient.CustomViewCallback) -> Unit,
+        onHide: () -> Unit
+    ) {
+        onCustomViewShowAction = onShow
+        onCustomViewHideAction = onHide
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -76,12 +174,13 @@ object EvaWebViewPool {
         activeServiceId = service.id
         return webViews.getOrPut(service.id) {
             WebView(context).apply {
+                tag = service.id
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
 
-                // 120 FPS Fluid Hardware Acceleration Engine
+                // Lightweight Adaptive Acceleration
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
                 // Chromium Web Core Configuration
@@ -94,6 +193,12 @@ object EvaWebViewPool {
                     setSupportZoom(true)
                     builtInZoomControls = true
                     displayZoomControls = false
+
+                    // Performance & Thermal Optimizations
+                    loadsImagesAutomatically = true
+                    blockNetworkImage = false
+                    setNeedInitialFocus(false)
+                    textZoom = 100
 
                     // SECURITY: Strict Local File Sandbox Isolation
                     allowFileAccess = false
@@ -119,6 +224,12 @@ object EvaWebViewPool {
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.setAcceptCookie(true)
                 cookieManager.setAcceptThirdPartyCookies(this, true)
+
+                // Native Media Track Metadata Bridge
+                addJavascriptInterface(
+                    EvaMediaBridge(context, service.id, service.name),
+                    "EvaMediaBridge"
+                )
 
                 // File & Media Downloads Handler
                 setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
@@ -154,8 +265,20 @@ object EvaWebViewPool {
                     }
 
                     override fun onPermissionRequest(request: PermissionRequest?) {
-                        // Grant camera and microphone permissions inside the sandbox
                         request?.grant(request.resources)
+                    }
+
+                    // Native YouTube Fullscreen Mode Support
+                    override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                        if (view != null && callback != null) {
+                            isFullscreenVideoActive = true
+                            onCustomViewShowAction?.invoke(view, callback)
+                        }
+                    }
+
+                    override fun onHideCustomView() {
+                        isFullscreenVideoActive = false
+                        onCustomViewHideAction?.invoke()
                     }
 
                     // Native Storage File Chooser for Photos, Videos, and Document Uploads
@@ -187,14 +310,13 @@ object EvaWebViewPool {
 
                         // 2. HTTP/HTTPS: Maintain inside EVA Chromium Core
                         if (scheme == "http" || scheme == "https") {
-                            // Block intrusive play store redirects to force web fidelity
                             if (url.contains("play.google.com/store/apps/details")) {
                                 return true
                             }
                             return false
                         }
 
-                        // 3. ANTI-INTENT HIJACKING: Intercept intent:// URLs so native apps are NOT launched
+                        // 3. ANTI-INTENT HIJACKING: Intercept intent:// URLs
                         if (scheme == "intent" || url.startsWith("intent://")) {
                             try {
                                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
@@ -209,7 +331,7 @@ object EvaWebViewPool {
                                     return true
                                 }
                             } catch (_: Exception) {}
-                            return true // Disallow launching external native app
+                            return true
                         }
 
                         // 4. Map app-specific deep links back into secure Web URLs
@@ -241,23 +363,26 @@ object EvaWebViewPool {
                             }
                         }
 
-                        // Disallow external escape
                         return true
                     }
 
-                    // SECURITY: Strict SSL Verification - Never bypass invalid certificates!
+                    // SECURITY: Strict SSL Verification
                     override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                        handler?.cancel() // Prevents MITM attacks
+                        handler?.cancel()
                     }
 
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         url?.let(onUrlChanged)
+                        // Inject background audio keep-alive early
+                        view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         cookieManager.flush()
+                        // Ensure background audio keep-alive and track observer are running
+                        view?.evaluateJavascript(BACKGROUND_AUDIO_SCRIPT, null)
                     }
                 }
 
@@ -278,7 +403,7 @@ object EvaWebViewPool {
                         if (v.paused) { v.play(); } else { v.pause(); }
                         return !v.paused;
                     }
-                    var playBtn = document.querySelector('button[data-testid="control-button-playpause"], .ytp-play-button, button[aria-label="Play"], button[aria-label="Pause"]');
+                    var playBtn = document.querySelector('button[data-testid="control-button-playpause"], .ytp-play-button, button[aria-label="Play"], button[aria-label="Pause"], #play-pause-button');
                     if (playBtn) { playBtn.click(); return true; }
                     return false;
                 })();
@@ -363,7 +488,9 @@ fun MultiTabWebViewContainer(
     activeService: AppService,
     modifier: Modifier = Modifier,
     onPageTitleChanged: (String) -> Unit = {},
-    onUrlChanged: (String) -> Unit = {}
+    onUrlChanged: (String) -> Unit = {},
+    onShowCustomView: ((View, WebChromeClient.CustomViewCallback) -> Unit)? = null,
+    onHideCustomView: (() -> Unit)? = null
 ) {
     var progress by remember { mutableFloatStateOf(0f) }
     var isLoading by remember { mutableStateOf(false) }
@@ -395,6 +522,11 @@ fun MultiTabWebViewContainer(
         pendingFileCallback?.onReceiveValue(null)
         pendingFileCallback = callback
         fileChooserLauncher.launch(intent)
+    }
+
+    // Connect Custom Fullscreen View to WebChromeClient
+    if (onShowCustomView != null && onHideCustomView != null) {
+        EvaWebViewPool.setCustomViewHandlers(onShowCustomView, onHideCustomView)
     }
 
     // Hardware back navigation
@@ -442,17 +574,20 @@ fun MultiTabWebViewContainer(
                     frameLayout.addView(activeWebView)
                 }
 
-                // In-Memory Fast Swapping (0ms lag, no network reloads)
+                // Adaptive Thermal Throttling & In-Memory Fast Swapping
                 for (i in 0 until frameLayout.childCount) {
                     val child = frameLayout.getChildAt(i)
                     if (child === activeWebView) {
                         child.visibility = View.VISIBLE
+                        child.setLayerType(View.LAYER_TYPE_HARDWARE, null)
                         activeWebView.onResume()
                     } else {
                         child.visibility = View.GONE
-                        // If background child is media, don't pause it so audio keeps streaming!
+                        // Remove hardware layer to cool down GPU
+                        child.setLayerType(View.LAYER_TYPE_NONE, null)
+                        // Never pause the active media tab (YouTube Music / Spotify) so audio streams continuously!
                         val otherServiceId = child.tag as? String
-                        if (otherServiceId != "spotify" && otherServiceId != "ytmusic") {
+                        if (otherServiceId != "ytmusic" && otherServiceId != "spotify" && otherServiceId != EvaMediaPlaybackService.activeServiceId) {
                             (child as? WebView)?.onPause()
                         }
                     }

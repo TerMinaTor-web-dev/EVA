@@ -8,9 +8,9 @@ import com.example.eva.model.AppService
 /**
  * Intelligent Picture-in-Picture (PiP) Decision Engine powered by Gemini Cognitive Logic.
  * 
- * Prevents PiP clutter for non-video apps (Instagram feeds, Reddit, LinkedIn, Facebook)
- * while granting fluid PiP for video streaming (YouTube, Vimeo, Twitch) and routing
- * pure audio services (Spotify, YT Music) to the System Media Mini-Player Notification.
+ * Prevents PiP clutter and blank white boxes for non-video apps (Instagram feeds, Reddit, LinkedIn, Facebook)
+ * and pure music apps (YouTube Music, Spotify).
+ * Grants fluid PiP ONLY when an active video stream or full-screen video is currently rendering.
  */
 object EvaPipDecisionEngine {
 
@@ -47,41 +47,49 @@ object EvaPipDecisionEngine {
             )
         }
 
-        // Rule 1: Video-First Services (YouTube, Twitch, Video streaming)
-        if (activeService.id == "youtube" || activeService.category.equals("Video", ignoreCase = true)) {
-            return PipDecision(
-                allowPip = true,
-                reason = "Gemini Policy: Active video streaming verified for ${activeService.name}.",
-                numerator = 16,
-                denominator = 9
-            )
-        }
-
-        // Rule 2: Active HTML5 Video detected in DOM
-        if (hasActiveVideo) {
-            return PipDecision(
-                allowPip = true,
-                reason = "Gemini Policy: Active HTML5 video element detected in active container.",
-                numerator = 16,
-                denominator = 9
-            )
-        }
-
-        // Rule 3: Audio & Music Services (Spotify, YT Music)
+        // Rule 1: Audio & Music Services (YouTube Music, Spotify)
+        // STRICTLY prohibit PiP to avoid blank white rectangles; route to System Quick Settings Mini-Player
         if (activeService.category.equals("Music", ignoreCase = true) ||
             activeService.id in listOf("spotify", "ytmusic")
         ) {
             return PipDecision(
                 allowPip = false,
-                reason = "Gemini Policy: Audio service routed to Android Quick Settings Media Notification."
+                reason = "Gemini Policy: Music streaming routed exclusively to Android Media Notification Mini-Player."
+            )
+        }
+
+        // Rule 2: Video Services (YouTube, Twitch, Video streams)
+        // PiP is ONLY allowed when an active hardware video or fullscreen view is currently engaged
+        if (activeService.id == "youtube" || activeService.category.equals("Video", ignoreCase = true)) {
+            return if (hasActiveVideo) {
+                PipDecision(
+                    allowPip = true,
+                    reason = "Gemini Policy: Active video rendering verified for ${activeService.name}.",
+                    numerator = 16,
+                    denominator = 9
+                )
+            } else {
+                PipDecision(
+                    allowPip = false,
+                    reason = "Gemini Policy: Video service active, but no fullscreen playback engaged. PiP suppressed to prevent blank box."
+                )
+            }
+        }
+
+        // Rule 3: General HTML5 Video check
+        if (hasActiveVideo) {
+            return PipDecision(
+                allowPip = true,
+                reason = "Gemini Policy: Active video surface detected in container.",
+                numerator = 16,
+                denominator = 9
             )
         }
 
         // Rule 4: Text, Feed, and Social Apps (Instagram, LinkedIn, Reddit, Facebook, X)
-        // Suppress PiP to prevent unusable tiny window obstruction
         return PipDecision(
             allowPip = false,
-            reason = "Gemini Policy: Non-video social feed detected (${activeService.name}). PiP suppressed for optimal UX."
+            reason = "Gemini Policy: Non-video feed detected (${activeService.name}). PiP suppressed for optimal UX."
         )
     }
 

@@ -1,5 +1,8 @@
 package com.example.eva.ui.screens
 
+import android.view.View
+import android.webkit.WebChromeClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -19,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.eva.model.AppService
 import com.example.eva.ui.components.EvaAiSheet
 import com.example.eva.ui.components.EvaWebViewPool
@@ -39,6 +43,18 @@ fun AppContainerScreen(
     var currentTitle by remember { mutableStateOf(initialService.name) }
     var currentUrl by remember { mutableStateOf(initialService.url) }
     var showAiAssistant by remember { mutableStateOf(false) }
+
+    // Native Fullscreen Video Player State (e.g. YouTube 4K / Landscape Fullscreen)
+    var customFullscreenView by remember { mutableStateOf<View?>(null) }
+    var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
+
+    // Hardware back navigation for Fullscreen Video
+    BackHandler(enabled = customFullscreenView != null) {
+        customViewCallback?.onCustomViewHidden()
+        customFullscreenView = null
+        customViewCallback = null
+        EvaWebViewPool.isFullscreenVideoActive = false
+    }
 
     // Direct app selection from taskbar or omnibar
     fun selectService(service: AppService) {
@@ -81,51 +97,75 @@ fun AppContainerScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF090A10))
-            .statusBarsPadding()
-    ) {
-        // 1. Phone Ratio Canvas for Active App (100% unobstructed, zero overlay interference)
+    if (customFullscreenView != null) {
+        // Fullscreen Custom View (100% immersive video surface)
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+                .fillMaxSize()
+                .background(Color.Black)
         ) {
-            MultiTabWebViewContainer(
-                activeService = activeService,
-                modifier = Modifier.fillMaxSize(),
-                onPageTitleChanged = { currentTitle = it },
-                onUrlChanged = { currentUrl = it }
+            AndroidView(
+                factory = { customFullscreenView!! },
+                modifier = Modifier.fillMaxSize()
             )
         }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xFF090A10))
+                .statusBarsPadding()
+        ) {
+            // 1. Phone Ratio Canvas for Active App (100% unobstructed, zero overlay interference)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                MultiTabWebViewContainer(
+                    activeService = activeService,
+                    modifier = Modifier.fillMaxSize(),
+                    onPageTitleChanged = { currentTitle = it },
+                    onUrlChanged = { currentUrl = it },
+                    onShowCustomView = { view, callback ->
+                        customFullscreenView = view
+                        customViewCallback = callback
+                        EvaWebViewPool.isFullscreenVideoActive = true
+                    },
+                    onHideCustomView = {
+                        customFullscreenView = null
+                        customViewCallback = null
+                        EvaWebViewPool.isFullscreenVideoActive = false
+                    }
+                )
+            }
 
-        // 2. Dedicated Non-Overlay Bottom Bar Area for the Gesture Pill Dock
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF0A0C14))
+            // 2. Dedicated Non-Overlay Bottom Bar Area for the Gesture Pill Dock
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0A0C14))
                 .border(
                     width = 0.5.dp,
                     color = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                 )
                 .navigationBarsPadding(),
-            contentAlignment = Alignment.Center
-        ) {
-            FloatingPillDock(
-                currentService = activeService,
-                onSelectService = ::selectService,
-                onSwipeRecentBackward = ::swipeRecentBackward,
-                onSwipeRecentForward = ::swipeRecentForward,
-                onNavigateHome = onNavigateHome,
-                onReloadCurrent = {
-                    EvaWebViewPool.reloadCurrent(activeService.id)
-                },
-                onOpenAiAssistant = { showAiAssistant = true },
-                modifier = Modifier.fillMaxWidth()
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                FloatingPillDock(
+                    currentService = activeService,
+                    onSelectService = ::selectService,
+                    onSwipeRecentBackward = ::swipeRecentBackward,
+                    onSwipeRecentForward = ::swipeRecentForward,
+                    onNavigateHome = onNavigateHome,
+                    onReloadCurrent = {
+                        EvaWebViewPool.reloadCurrent(activeService.id)
+                    },
+                    onOpenAiAssistant = { showAiAssistant = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 

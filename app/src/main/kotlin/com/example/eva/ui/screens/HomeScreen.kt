@@ -89,18 +89,6 @@ fun HomeScreen(
 
     val focusManager = LocalFocusManager.current
 
-    // Ambient Nebula Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "nebula")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-
     fun executeOmniSearch() {
         val trimmed = omniQuery.trim()
         if (trimmed.isBlank()) return
@@ -147,7 +135,6 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .size(360.dp)
-                .scale(pulseScale)
                 .align(Alignment.TopEnd)
                 .background(
                     Brush.radialGradient(
@@ -158,7 +145,6 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .size(320.dp)
-                .scale(pulseScale)
                 .align(Alignment.BottomStart)
                 .background(
                     Brush.radialGradient(

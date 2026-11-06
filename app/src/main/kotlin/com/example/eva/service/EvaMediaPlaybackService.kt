@@ -38,12 +38,14 @@ class EvaMediaPlaybackService : Service() {
         const val ACTION_PLAY_PAUSE = "com.example.eva.action.PLAY_PAUSE"
         const val ACTION_NEXT = "com.example.eva.action.NEXT"
         const val ACTION_PREVIOUS = "com.example.eva.action.PREVIOUS"
+        const val ACTION_UPDATE_TRACK = "com.example.eva.action.UPDATE_TRACK"
 
         const val EXTRA_TITLE = "extra_media_title"
         const val EXTRA_SERVICE_NAME = "extra_service_name"
         const val EXTRA_SERVICE_ID = "extra_service_id"
 
-        private var activeServiceId: String = "youtube"
+        var activeServiceId: String = "ytmusic"
+            private set
 
         fun startPlayback(context: Context, serviceId: String, serviceName: String, title: String) {
             activeServiceId = serviceId
@@ -53,25 +55,46 @@ class EvaMediaPlaybackService : Service() {
                 putExtra(EXTRA_SERVICE_NAME, serviceName)
                 putExtra(EXTRA_TITLE, title)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {}
+        }
+
+        fun updateTrack(context: Context, serviceId: String, artist: String, title: String) {
+            activeServiceId = serviceId
+            val intent = Intent(context, EvaMediaPlaybackService::class.java).apply {
+                action = ACTION_UPDATE_TRACK
+                putExtra(EXTRA_SERVICE_ID, serviceId)
+                putExtra(EXTRA_SERVICE_NAME, artist)
+                putExtra(EXTRA_TITLE, title)
             }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {}
         }
 
         fun stopPlayback(context: Context) {
             val intent = Intent(context, EvaMediaPlaybackService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {}
         }
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var mediaSession: MediaSessionCompat? = null
-    private var currentTitle: String = "Background Audio Active"
-    private var currentServiceName: String = "EVA Media"
+    private var currentTitle: String = "EVA Player Active"
+    private var currentServiceName: String = "Background Streaming"
     private var isPlaying: Boolean = true
 
     override fun onCreate() {
@@ -167,6 +190,21 @@ class EvaMediaPlaybackService : Service() {
             ACTION_PREVIOUS -> {
                 EvaWebViewPool.skipPrevious(activeServiceId)
                 return START_STICKY
+            }
+            ACTION_UPDATE_TRACK -> {
+                val serviceName = intent.getStringExtra(EXTRA_SERVICE_NAME) ?: currentServiceName
+                val title = intent.getStringExtra(EXTRA_TITLE) ?: currentTitle
+                val serviceId = intent.getStringExtra(EXTRA_SERVICE_ID) ?: activeServiceId
+                activeServiceId = serviceId
+
+                currentServiceName = serviceName
+                currentTitle = title
+                isPlaying = true
+
+                acquireWakeLock()
+                updateMetadata(serviceName, title)
+                updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
+                refreshNotification()
             }
             ACTION_START -> {
                 val serviceName = intent.getStringExtra(EXTRA_SERVICE_NAME) ?: "EVA Media"
@@ -274,7 +312,7 @@ class EvaMediaPlaybackService : Service() {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(serviceName)
-            .setSubText("EVA Super-Player")
+            .setSubText("EVA Player")
             .setContentIntent(openPendingIntent)
             .setOngoing(playing)
             .setPriority(NotificationCompat.PRIORITY_LOW)

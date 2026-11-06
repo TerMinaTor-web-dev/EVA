@@ -1,13 +1,7 @@
 package com.example.eva.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -52,29 +45,16 @@ fun CrystalBubble(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // Smooth press feedback with spring physics (up to 120Hz)
+    // Interactive spring physics that only animates on user touch (0% idle CPU)
     val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        targetValue = if (isPressed) 0.90f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 500f),
         label = "bubblePressScale"
-    )
-
-    // Gentle float & breathing animation with index-based phase offset
-    val infiniteTransition = rememberInfiniteTransition(label = "bubbleFloatTransition")
-    val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -5f,
-        targetValue = 5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400 + (index * 200), easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "bubbleFloatOffset"
     )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .offset(y = floatOffset.dp)
             .scale(pressScale)
             .clickable(
                 interactionSource = interactionSource,
@@ -119,37 +99,56 @@ fun CrystalBubble(
                     shape = CircleShape
                 )
         ) {
-            // Internal Glass Lens Specular Glint (Top-left light reflection)
+            // Glass Specular Highlight Arc
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp)
+                    .size(68.dp)
                     .clip(CircleShape)
                     .background(
-                        Brush.verticalGradient(
+                        Brush.linearGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.35f),
+                                Color.White.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.05f),
                                 Color.Transparent
                             ),
-                            startY = 0f,
-                            endY = 45f
+                            start = Offset(0f, 0f),
+                            end = Offset(0f, 80f)
                         )
                     )
             )
 
-            // Authentic Brand Vector Logo
-            AppBrandIcon(serviceId = service.id, modifier = Modifier.size(34.dp))
+            // Inner Shadow Vignette
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.35f)
+                            )
+                        )
+                    )
+            )
+
+            // Official Service Brand Vector Icon
+            AppBrandIcon(
+                serviceId = service.id,
+                modifier = Modifier.size(38.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // App Name Label
+        // Typography
         Text(
             text = service.name,
-            color = EvaColors.TextPrimary,
-            fontSize = 12.sp,
+            color = Color.White,
+            fontSize = 12.5.sp,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            letterSpacing = 0.3.sp
         )
     }
 }
