@@ -1,20 +1,33 @@
 package com.example.eva.ui.screens
 
 import android.app.Activity
+import android.content.Context
 import android.content.pm.ActivityInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebChromeClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -26,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -56,6 +71,31 @@ fun AppContainerScreen(
 
     val context = LocalContext.current
     val activity = context as? Activity
+
+    val connectivityManager = remember {
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+    }
+    var isOnline by remember { mutableStateOf(true) }
+
+    DisposableEffect(connectivityManager) {
+        val networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                isOnline = true
+            }
+            override fun onLost(network: Network) {
+                isOnline = false
+            }
+        }
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager?.registerNetworkCallback(request, networkCallback)
+        onDispose {
+            try {
+                connectivityManager?.unregisterNetworkCallback(networkCallback)
+            } catch (_: Exception) {}
+        }
+    }
 
     // Native Fullscreen Video Player State (e.g. YouTube 4K / Landscape Fullscreen)
     var customFullscreenView by remember { mutableStateOf<View?>(null) }
@@ -182,6 +222,29 @@ fun AppContainerScreen(
                 .background(Color(0xFF090A10))
                 .statusBarsPadding()
         ) {
+            // Real-time Cybernetic Offline Notice Banner
+            AnimatedVisibility(
+                visible = !isOnline,
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF8B0000).copy(alpha = 0.9f))
+                        .clickable { EvaWebViewPool.reloadCurrent(activeService.id) }
+                        .padding(vertical = 5.dp, horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⚡ Connection offline • Tap to reload",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             // 1. Phone Ratio Canvas for Active App (100% unobstructed, zero overlay interference)
             Box(
                 modifier = Modifier
@@ -225,6 +288,10 @@ fun AppContainerScreen(
                         EvaWebViewPool.reloadCurrent(activeService.id)
                     },
                     onOpenAiAssistant = { showAiAssistant = true },
+                    canGoBack = EvaWebViewPool.canGoBack(activeService.id),
+                    onGoBack = { EvaWebViewPool.goBack(activeService.id) },
+                    canGoForward = EvaWebViewPool.canGoForward(activeService.id),
+                    onGoForward = { EvaWebViewPool.goForward(activeService.id) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }

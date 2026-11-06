@@ -29,6 +29,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
@@ -66,6 +68,10 @@ fun FloatingPillDock(
     onNavigateHome: () -> Unit,
     onReloadCurrent: () -> Unit,
     onOpenAiAssistant: () -> Unit,
+    canGoBack: Boolean = false,
+    onGoBack: () -> Unit = {},
+    canGoForward: Boolean = false,
+    onGoForward: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -306,12 +312,52 @@ fun FloatingPillDock(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Dock Controls Footer (Home, Refresh, AI Assistant)
+                // Dock Controls Footer (Back, Forward, Home, Refresh, AI Assistant)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Navigation Pair: Back & Forward
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Back
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (canGoBack) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
+                                .clickable(enabled = canGoBack) { onGoBack() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = if (canGoBack) EvaColors.NeonCyan else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Forward
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (canGoForward) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f))
+                                .clickable(enabled = canGoForward) { onGoForward() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Forward",
+                                tint = if (canGoForward) EvaColors.NeonCyan else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     // Home Hub Button
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -322,19 +368,19 @@ fun FloatingPillDock(
                                 isExpanded = false
                                 onNavigateHome()
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Home,
                             contentDescription = "Home",
                             tint = EvaColors.NeonCyan,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "Hub",
                             color = Color.White,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -349,19 +395,19 @@ fun FloatingPillDock(
                                 isExpanded = false
                                 onReloadCurrent()
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Reload",
                             tint = EvaColors.NeonPurple,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "Reload",
                             color = Color.White,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -383,19 +429,19 @@ fun FloatingPillDock(
                                 isExpanded = false
                                 onOpenAiAssistant()
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = "EVA AI",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "EVA AI",
                             color = Color.White,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }

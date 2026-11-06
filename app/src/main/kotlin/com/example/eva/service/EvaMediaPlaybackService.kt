@@ -14,6 +14,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.media.AudioManager
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
@@ -23,6 +24,9 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.AudioAttributesCompat
+import androidx.media.AudioFocusRequestCompat
+import androidx.media.AudioManagerCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import com.example.eva.MainActivity
 import com.example.eva.R
@@ -639,8 +643,70 @@ class EvaMediaPlaybackService : Service() {
         }
     }
 
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequestCompat? = null
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                isPlaying = false
+                releaseLocks()
+                updatePlaybackState(PlaybackStateCompat.STATE_PAUSED, currentPositionMs, currentDurationMs)
+                EvaMediaCoordinator.onUserExplicitPause(this@EvaMediaPlaybackService)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.setPlayPauseState(targetServiceId, false)
+                refreshNotification()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                isPlaying = false
+                releaseLocks()
+                updatePlaybackState(PlaybackStateCompat.STATE_PAUSED, currentPositionMs, currentDurationMs)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.setPlayPauseState(targetServiceId, false)
+                refreshNotification()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                isPlaying = true
+                acquireLocks()
+                updatePlaybackState(PlaybackStateCompat.STATE_PLAYING, currentPositionMs, currentDurationMs)
+                val targetServiceId = EvaMediaCoordinator.activeAudioServiceId ?: activeServiceId
+                EvaWebViewPool.setPlayPauseState(targetServiceId, true)
+                refreshNotification()
+            }
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        if (audioManager == null) {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        }
+        val am = audioManager ?: return false
+        val request = AudioFocusRequestCompat.Builder(AudioManagerCompat.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributesCompat.Builder()
+                    .setUsage(AudioAttributesCompat.USAGE_MEDIA)
+                    .setContentType(AudioAttributesCompat.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener(audioFocusChangeListener)
+            .build()
+        audioFocusRequest = request
+        val res = AudioManagerCompat.requestAudioFocus(am, request)
+        return res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        audioManager?.let { am ->
+            audioFocusRequest?.let { req ->
+                AudioManagerCompat.abandonAudioFocusRequest(am, req)
+            }
+        }
+    }
+
     private fun acquireLocks() {
         try {
+            requestAudioFocus()
             if (wakeLock?.isHeld != true) {
                 wakeLock?.acquire(6 * 60 * 60 * 1000L)
             }
@@ -652,6 +718,7 @@ class EvaMediaPlaybackService : Service() {
 
     private fun releaseLocks() {
         try {
+            abandonAudioFocus()
             if (wakeLock?.isHeld == true) wakeLock?.release()
             if (wifiLock?.isHeld == true) wifiLock?.release()
         } catch (_: Exception) {}
@@ -659,6 +726,7 @@ class EvaMediaPlaybackService : Service() {
 
     private fun stopServiceGracefully() {
         releaseLocks()
+        abandonAudioFocus()
         artworkDownloadJob?.cancel()
         mediaSession?.isActive = false
         mediaSession?.release()

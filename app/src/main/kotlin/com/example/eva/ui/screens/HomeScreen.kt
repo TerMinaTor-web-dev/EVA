@@ -78,6 +78,7 @@ import com.example.eva.data.EvaHybridStorageEngine
 import com.example.eva.data.EvaPlayStoreBridgeManager
 import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
+import com.example.eva.diagnostics.EvaDiagnosticsManager
 import com.example.eva.model.AppService
 import com.example.eva.ui.components.CrystalBubble
 import com.example.eva.ui.components.EvaUpdateDialog
@@ -306,7 +307,11 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Hybrid Native Engine Card (Clickable)
+                // Hybrid Native Engine Card (Clickable -> Opens Diagnostics Tab)
+                val activeCount = EvaDiagnosticsManager.activeWebViewCount
+                val lastLoadMs = EvaDiagnosticsManager.lastPageLoadDurationMs
+                val engineSubtitle = if (activeCount > 0 && lastLoadMs > 0) "${lastLoadMs}ms • $activeCount Active" else "Hardware Accelerated"
+
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -318,7 +323,7 @@ fun HomeScreen(
                             RoundedCornerShape(14.dp)
                         )
                         .clickable {
-                            selectedDialogTab = 1
+                            selectedDialogTab = 2
                             showCloudDetailsDialog = true
                         }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -327,7 +332,7 @@ fun HomeScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Speed,
-                        contentDescription = "FPS",
+                        contentDescription = "Engine Diagnostics",
                         tint = EvaColors.NeonCyan,
                         modifier = Modifier.size(16.dp)
                     )
@@ -339,7 +344,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "120 FPS All-in-One",
+                            text = engineSubtitle,
                             color = EvaColors.NeonCyan,
                             fontSize = 9.sp
                         )
@@ -563,7 +568,7 @@ fun HomeScreen(
                         }
                     }
 
-                    // Tab Selector: Cloud Space vs Play Store & Hybrid Sync
+                    // Tab Selector: Cloud Space vs Play Store & Hybrid Sync vs Engine Diagnostics
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -584,7 +589,7 @@ fun HomeScreen(
                             Text(
                                 text = "15 GB Cloud",
                                 color = if (selectedDialogTab == 0) EvaColors.NeonCyan else Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -599,9 +604,26 @@ fun HomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Play Store & Sync",
+                                text = "Play Store",
                                 color = if (selectedDialogTab == 1) EvaColors.NeonPurple else Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedDialogTab == 2) Color(0xFF00E676).copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable { selectedDialogTab = 2 }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Diagnostics",
+                                color = if (selectedDialogTab == 2) Color(0xFF00E676) else Color.White.copy(alpha = 0.7f),
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -847,6 +869,101 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Play Store", color = EvaColors.NeonCyan, fontSize = 9.5.sp)
+                            }
+                        }
+                    }
+
+                    if (selectedDialogTab == 2) {
+                        // TAB 2: Real-time Chromium Engine 3.0 Performance Diagnostics
+                        val memory = remember { EvaDiagnosticsManager.getMemoryDiagnostics(context) }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.03f))
+                                .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "ENGINE 3.0 TELEMETRY",
+                                color = EvaColors.NeonCyan,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Active WebViews in LRU Pool:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.activeWebViewCount} / 3 Max", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Renderer Crash Recoveries:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.totalRendererCrashesRecovered} (Auto-Restored)", color = Color(0xFF81C784), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Last WebView Init Duration:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.lastInitDurationMs} ms", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Last Page Load Duration:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.lastPageLoadDurationMs} ms", color = EvaColors.NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Last Service Switch Latency:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.lastServiceSwitchDurationMs} ms", color = EvaColors.NeonPurple, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Page / Network Failures:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.totalPageLoadFailures} page • ${EvaDiagnosticsManager.totalNetworkFailures} net", color = if (EvaDiagnosticsManager.totalPageLoadFailures > 0) Color(0xFFFFB74D) else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Downloads Completed:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${EvaDiagnosticsManager.totalDownloadsCompleted}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("JVM Heap Usage:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${String.format(Locale.US, "%.1f", memory.usedHeapMb)} MB / ${String.format(Locale.US, "%.1f", memory.maxHeapMb)} MB", color = EvaColors.NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("App Local Cache:", color = EvaColors.TextSecondary, fontSize = 10.sp)
+                                Text("${String.format(Locale.US, "%.1f", memory.cacheDirSizeMb)} MB", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

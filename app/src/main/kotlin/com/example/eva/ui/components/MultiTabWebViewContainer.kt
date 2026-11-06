@@ -2,24 +2,24 @@ package com.example.eva.ui.components
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
-import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebStorage
@@ -33,6 +33,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import com.example.eva.data.EvaDownloadManager
+import com.example.eva.data.ServiceWebProfileRegistry
+import com.example.eva.diagnostics.EvaDiagnosticsManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -587,7 +590,10 @@ class EvaMediaBridge(
 }
 
 object EvaWebViewPool {
+    private const val MAX_ACTIVE_WEBVIEWS = 3
     private val webViews = mutableMapOf<String, WebView>()
+    private val lruOrder = mutableListOf<String>()
+
     var activeServiceId: String = "ytmusic"
     var isFullscreenVideoActive: Boolean = false
 
@@ -607,6 +613,11 @@ object EvaWebViewPool {
         onCustomViewHideAction = onHide
     }
 
+    private fun touchService(serviceId: String) {
+        lruOrder.remove(serviceId)
+        lruOrder.add(serviceId)
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     fun getOrCreateWebView(
         context: Context,
@@ -616,21 +627,46 @@ object EvaWebViewPool {
         onUrlChanged: (String) -> Unit
     ): WebView {
         activeServiceId = service.id
+        touchService(service.id)
+
+        // Bounded LRU Cache Eviction: keep pool size <= MAX_ACTIVE_WEBVIEWS
+        if (!webViews.containsKey(service.id) && webViews.size >= MAX_ACTIVE_WEBVIEWS) {
+            val activeAudio = EvaMediaCoordinator.activeAudioServiceId
+            val pausedAudio = EvaMediaCoordinator.pausedBackgroundServiceId
+            val candidate = lruOrder.firstOrNull { id ->
+                id != service.id && id != activeAudio && id != pausedAudio
+            }
+            if (candidate != null) {
+                val evictedView = webViews.remove(candidate)
+                lruOrder.remove(candidate)
+                evictedView?.let { wv ->
+                    (wv.parent as? ViewGroup)?.removeView(wv)
+                    wv.stopLoading()
+                    wv.destroy()
+                }
+                EvaDiagnosticsManager.updateActiveWebViewCount(webViews.size)
+            }
+        }
+
         return webViews.getOrPut(service.id) {
-            WebView(context).apply {
+            val initStart = EvaDiagnosticsManager.recordWebViewInitStart()
+            val profile = ServiceWebProfileRegistry.getProfileForService(service)
+
+            val wv = WebView(context).apply {
                 tag = service.id
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
 
-                // Lightweight Adaptive Acceleration
+                // High-performance hardware acceleration
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
-                // Chromium Web Core Configuration
+                // Chromium Web Core Configuration driven by ServiceWebProfile
                 settings.apply {
-                    javaScriptEnabled = true
-                    domStorageEnabled = true
+                    javaScriptEnabled = profile.allowJavaScript
+                    domStorageEnabled = profile.allowDomStorage
+                    databaseEnabled = true
                     cacheMode = WebSettings.LOAD_DEFAULT
                     useWideViewPort = true
                     loadWithOverviewMode = true
@@ -653,21 +689,17 @@ object EvaWebViewPool {
                     allowUniversalAccessFromFileURLs = false
 
                     // Background Media Playback & WebRTC
-                    mediaPlaybackRequiresUserGesture = false
-                    javaScriptCanOpenWindowsAutomatically = true
+                    mediaPlaybackRequiresUserGesture = profile.mediaPlaybackRequiresUserGesture
+                    javaScriptCanOpenWindowsAutomatically = profile.allowPopups
 
-                    // Serve High-Fidelity Chrome Mobile or Desktop Engine
-                    userAgentString = if (service.isDesktopUserAgent) {
-                        DESKTOP_USER_AGENT
-                    } else {
-                        CHROME_MOBILE_USER_AGENT
-                    }
+                    // Serve High-Fidelity Chrome Mobile or Desktop Engine per profile
+                    userAgentString = profile.resolveUserAgent(CHROME_MOBILE_USER_AGENT, DESKTOP_USER_AGENT)
                 }
 
                 // Cookie Persistence with Strict Security
                 val cookieManager = CookieManager.getInstance()
-                cookieManager.setAcceptCookie(true)
-                cookieManager.setAcceptThirdPartyCookies(this, true)
+                cookieManager.setAcceptCookie(profile.allowCookies)
+                cookieManager.setAcceptThirdPartyCookies(this, profile.allowThirdPartyCookies)
 
                 // Native Media Track Metadata Bridge
                 addJavascriptInterface(
@@ -675,23 +707,21 @@ object EvaWebViewPool {
                     "EvaMediaBridge"
                 )
 
-                // File & Media Downloads Handler
+                // File & Media Downloads Handler powered by EvaDownloadManager
                 setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+                    if (!profile.allowDownloads) {
+                        Toast.makeText(context, "Downloads restricted for ${service.name}", Toast.LENGTH_SHORT).show()
+                        return@setDownloadListener
+                    }
                     try {
-                        val request = DownloadManager.Request(Uri.parse(url)).apply {
-                            setMimeType(mimetype)
-                            addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url))
-                            addRequestHeader("User-Agent", userAgent)
-                            setDescription("Downloading file from ${service.name}")
-                            setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype))
-                            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                            setDestinationInExternalPublicDir(
-                                Environment.DIRECTORY_DOWNLOADS,
-                                URLUtil.guessFileName(url, contentDisposition, mimetype)
-                            )
-                        }
-                        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
-                        manager?.enqueue(request)
+                        EvaDownloadManager.enqueueDownload(
+                            context = context,
+                            url = url,
+                            userAgent = userAgent,
+                            contentDisposition = contentDisposition,
+                            mimeType = mimetype,
+                            serviceName = service.name
+                        )
                         Toast.makeText(context, "Download started...", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         Toast.makeText(context, "Unable to process download", Toast.LENGTH_SHORT).show()
@@ -715,7 +745,25 @@ object EvaWebViewPool {
                     }
 
                     override fun onPermissionRequest(request: PermissionRequest?) {
-                        request?.grant(request.resources)
+                        if (request == null) return
+                        val reqOrigin = request.origin?.toString() ?: ""
+                        if (!profile.isOriginAllowed(reqOrigin)) {
+                            request.deny()
+                            return
+                        }
+                        val granted = mutableListOf<String>()
+                        for (res in request.resources) {
+                            when (res) {
+                                PermissionRequest.RESOURCE_VIDEO_CAPTURE -> if (profile.allowCamera) granted.add(res)
+                                PermissionRequest.RESOURCE_AUDIO_CAPTURE -> if (profile.allowMicrophone) granted.add(res)
+                                PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID -> granted.add(res)
+                            }
+                        }
+                        if (granted.isNotEmpty()) {
+                            request.grant(granted.toTypedArray())
+                        } else {
+                            request.deny()
+                        }
                     }
 
                     // Native YouTube Fullscreen Mode Support
@@ -737,6 +785,10 @@ object EvaWebViewPool {
                         filePathCallback: ValueCallback<Array<Uri>>?,
                         fileChooserParams: FileChooserParams?
                     ): Boolean {
+                        if (!profile.allowFileUploads) {
+                            filePathCallback?.onReceiveValue(null)
+                            return false
+                        }
                         val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
                             type = "*/*"
                             addCategory(Intent.CATEGORY_OPENABLE)
@@ -747,6 +799,21 @@ object EvaWebViewPool {
                 }
 
                 webViewClient = object : WebViewClient() {
+                    // Renderer crash recovery: prevents host application termination on isolated renderer death
+                    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                        EvaDiagnosticsManager.recordRendererCrashRecovered(service.id)
+                        Handler(Looper.getMainLooper()).post {
+                            try {
+                                (view?.parent as? ViewGroup)?.removeView(view)
+                                view?.destroy()
+                                webViews.remove(service.id)
+                                lruOrder.remove(service.id)
+                                EvaDiagnosticsManager.updateActiveWebViewCount(webViews.size)
+                            } catch (_: Exception) {}
+                        }
+                        return true
+                    }
+
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         val uri = request?.url ?: return false
                         val url = uri.toString()
@@ -821,9 +888,23 @@ object EvaWebViewPool {
                         handler?.cancel()
                     }
 
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?
+                    ) {
+                        super.onReceivedError(view, request, error)
+                        if (request?.isForMainFrame == true) {
+                            val errorCode = error?.errorCode ?: -1
+                            val desc = error?.description?.toString() ?: "Error"
+                            EvaDiagnosticsManager.recordPageLoadError(service.id, errorCode, desc)
+                        }
+                    }
+
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         url?.let(onUrlChanged)
+                        EvaDiagnosticsManager.recordPageLoadStarted(service.id, service.name)
                         view?.evaluateJavascript(NATIVE_APP_SHELL_TRANSFORM_SCRIPT, null)
                         val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
                         view?.evaluateJavascript(script, null)
@@ -831,6 +912,7 @@ object EvaWebViewPool {
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
+                        EvaDiagnosticsManager.recordPageLoadFinished(service.id)
                         cookieManager.flush()
                         view?.evaluateJavascript(NATIVE_APP_SHELL_TRANSFORM_SCRIPT, null)
                         val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
@@ -843,6 +925,10 @@ object EvaWebViewPool {
 
                 loadUrl(service.url)
             }
+
+            EvaDiagnosticsManager.recordWebViewInitEnd(initStart)
+            EvaDiagnosticsManager.updateActiveWebViewCount(webViews.size)
+            wv
         }
     }
 
@@ -1043,6 +1129,16 @@ object EvaWebViewPool {
         }
     }
 
+    fun canGoForward(serviceId: String): Boolean {
+        return webViews[serviceId]?.canGoForward() == true
+    }
+
+    fun goForward(serviceId: String) {
+        Handler(Looper.getMainLooper()).post {
+            webViews[serviceId]?.goForward()
+        }
+    }
+
     /**
      * GDPR & Data Protection: Complete Sandbox Wipe of all cookies, cache, and WebStorage.
      */
@@ -1051,6 +1147,8 @@ object EvaWebViewPool {
             try {
                 webViews.values.forEach { it.destroy() }
                 webViews.clear()
+                lruOrder.clear()
+                EvaDiagnosticsManager.updateActiveWebViewCount(0)
 
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.removeAllCookies(null)
@@ -1067,6 +1165,8 @@ object EvaWebViewPool {
         Handler(Looper.getMainLooper()).post {
             webViews.values.forEach { it.destroy() }
             webViews.clear()
+            lruOrder.clear()
+            EvaDiagnosticsManager.updateActiveWebViewCount(0)
         }
     }
 }
@@ -1134,6 +1234,7 @@ fun MultiTabWebViewContainer(
                 }
             },
             update = { frameLayout ->
+                val switchStart = EvaDiagnosticsManager.recordServiceSwitchStart()
                 val activeWebView = EvaWebViewPool.getOrCreateWebView(
                     context = frameLayout.context,
                     service = activeService,
@@ -1182,6 +1283,7 @@ fun MultiTabWebViewContainer(
                         }
                     }
                 }
+                EvaDiagnosticsManager.recordServiceSwitchEnd(switchStart)
             }
         )
 

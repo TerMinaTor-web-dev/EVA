@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -12,8 +14,8 @@ android {
     applicationId = "com.example.eva"
     minSdk = 26
     targetSdk = 36
-    versionCode = 11
-    versionName = "2.0"
+    versionCode = 12
+    versionName = "3.0"
   }
 
   signingConfigs {
@@ -21,9 +23,23 @@ android {
       val keystoreFile = rootProject.file("keystore/eva-release.keystore")
       if (keystoreFile.exists()) {
         storeFile = keystoreFile
-        storePassword = "evasuperapp2026"
-        keyAlias = "eva"
-        keyPassword = "evasuperapp2026"
+        val localProps = Properties()
+        val propFile = rootProject.file("local.properties")
+        if (propFile.exists()) {
+          propFile.inputStream().use { stream ->
+            localProps.load(stream)
+          }
+        }
+        val defaultSecret = "evasuperapp2026"
+        storePassword = System.getenv("EVA_KEYSTORE_PASSWORD")
+          ?: localProps.getProperty("EVA_KEYSTORE_PASSWORD")
+          ?: defaultSecret
+        keyAlias = System.getenv("EVA_KEY_ALIAS")
+          ?: localProps.getProperty("EVA_KEY_ALIAS")
+          ?: "eva"
+        keyPassword = System.getenv("EVA_KEY_PASSWORD")
+          ?: localProps.getProperty("EVA_KEY_PASSWORD")
+          ?: defaultSecret
         enableV1Signing = true
         enableV2Signing = true
       }
