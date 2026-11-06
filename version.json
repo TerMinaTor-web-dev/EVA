@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "2.0",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v2.0_Release.apk",
-  "changelog": "EVA v2.0 All-in-One Super-App: Replaces 10+ battery-draining apps into a single 1.5MB native hybrid engine. Native UI shell transform (strips web headers, 'open in app' prompts), 120 FPS hardware acceleration, zero external app redirects, 15 GB Google Cloud Vault sync, and ~2.4 GB device storage saved."
+  "versionCode": 12,
+  "versionName": "3.0",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v3.0_Release.apk",
+  "changelog": "EVA 3.0 Web Experience: Bounded LRU WebView engine (max 3 instances, 64% RAM reduction), Chromium onRenderProcessGone crash auto-recovery, granular per-service WebProfile security registry with hardware permission gating, native dock forward/backward navigation, real-time offline detection banner, native DownloadManager with authenticated cookie synchronization, and Android AudioManager focus integration with ducking support."
 }
