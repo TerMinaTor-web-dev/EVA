@@ -1,6 +1,9 @@
 package com.example.eva.ui.screens
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.view.View
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,8 +25,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.eva.model.AppService
 import com.example.eva.service.EvaPipDecisionEngine
 import com.example.eva.ui.components.EvaAiSheet
@@ -45,16 +53,58 @@ fun AppContainerScreen(
     var currentUrl by remember { mutableStateOf(initialService.url) }
     var showAiAssistant by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val activity = context as? Activity
+
     // Native Fullscreen Video Player State (e.g. YouTube 4K / Landscape Fullscreen)
     var customFullscreenView by remember { mutableStateOf<View?>(null) }
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
-    // Hardware back navigation for Fullscreen Video
-    BackHandler(enabled = customFullscreenView != null) {
+    fun enterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback) {
+        customFullscreenView = view
+        customViewCallback = callback
+        EvaWebViewPool.isFullscreenVideoActive = true
+
+        activity?.let { act ->
+            // Auto-switch to 16:9 Landscape Video Theater Mode
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            act.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // Bezel-to-bezel Immersive Sticky Mode (hide status & navigation bars)
+            val insetsController = WindowCompat.getInsetsController(act.window, act.window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    fun exitFullscreen() {
         customViewCallback?.onCustomViewHidden()
         customFullscreenView = null
         customViewCallback = null
         EvaWebViewPool.isFullscreenVideoActive = false
+
+        activity?.let { act ->
+            // Restore normal screen orientation & clear keep-screen-on
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            act.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+            // Restore status & navigation bars
+            val insetsController = WindowCompat.getInsetsController(act.window, act.window.decorView)
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (EvaWebViewPool.isFullscreenVideoActive) {
+                exitFullscreen()
+            }
+        }
+    }
+
+    // Hardware back navigation for Fullscreen Video
+    BackHandler(enabled = customFullscreenView != null) {
+        exitFullscreen()
     }
 
     // Direct app selection from taskbar or omnibar
@@ -143,14 +193,10 @@ fun AppContainerScreen(
                     onPageTitleChanged = { currentTitle = it },
                     onUrlChanged = { currentUrl = it },
                     onShowCustomView = { view, callback ->
-                        customFullscreenView = view
-                        customViewCallback = callback
-                        EvaWebViewPool.isFullscreenVideoActive = true
+                        enterFullscreen(view, callback)
                     },
                     onHideCustomView = {
-                        customFullscreenView = null
-                        customViewCallback = null
-                        EvaWebViewPool.isFullscreenVideoActive = false
+                        exitFullscreen()
                     }
                 )
             }

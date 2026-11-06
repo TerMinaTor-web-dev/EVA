@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.6_Release.apk",
-  "changelog": "In-app touch-aware play/pause, media notification forward/backward skip, unobstructed Picture-in-Picture video mode & 120 FPS high-refresh rate support."
+  "versionCode": 8,
+  "versionName": "1.7",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.7_Release.apk",
+  "changelog": "YouTube Fullscreen Auto-Switch to Landscape, Bezel-to-bezel Immersive Theater Mode, and Screen Awake Lock during video playback."
 }
