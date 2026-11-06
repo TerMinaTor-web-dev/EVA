@@ -61,6 +61,82 @@ private const val DESKTOP_USER_AGENT =
 private const val CHROME_MOBILE_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36"
 
+// Native App Shell Optimization: Injects native-app look & feel, strips 'Open in App' nag banners, enables 120 FPS momentum
+private const val NATIVE_APP_SHELL_TRANSFORM_SCRIPT = """
+(function() {
+    if (window.__evaNativeShellInjected) return;
+    window.__evaNativeShellInjected = true;
+
+    var css = `
+        * {
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-touch-callout: none !important;
+        }
+        input, textarea, [contenteditable="true"] {
+            -webkit-touch-callout: default !important;
+            -webkit-user-select: auto !important;
+        }
+        body {
+            overscroll-behavior-y: contain !important;
+            -webkit-font-smoothing: antialiased !important;
+        }
+        ::-webkit-scrollbar {
+            display: none !important;
+            width: 0px !important;
+            height: 0px !important;
+        }
+        [href*="instagram://"], [href*="play.google.com/store/apps/details?id=com.instagram"],
+        .x1c4vz4f, div:has(> [aria-label*="Get Instagram"]),
+        ytm-smart-app-banner, .mobile-topbar-header [aria-label*="Open app"], ytm-promoted-sparkles-web-renderer,
+        .XPromoPopup, shreddit-async-loader[bundlename*="xpromo"], [slot="bottom-banner"],
+        reddit-header-action-items a[href*="reddit.com/get-app"],
+        [data-testid*="banner-open-app"], .spotify-app-banner,
+        [aria-label*="Switch to the app"], [data-testid="app-upsell"],
+        .smartbanner, .app-banner, [class*="smartbanner"], [class*="app-banner"],
+        [class*="install-app"], [class*="open-in-app"], [id*="smartbanner"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0px !important;
+            max-height: 0px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    `;
+
+    function injectStyle() {
+        if (document.getElementById('eva-native-shell-style')) return;
+        var style = document.createElement('style');
+        style.id = 'eva-native-shell-style';
+        style.appendChild(document.createTextNode(css));
+        (document.head || document.documentElement).appendChild(style);
+    }
+    injectStyle();
+
+    function dismissAppNag() {
+        injectStyle();
+        var redditDismiss = document.querySelector('.XPromoPopup button, shreddit-async-loader button[aria-label*="Close"], .xpromo-continue-button');
+        if (redditDismiss) {
+            try { redditDismiss.click(); } catch(e) {}
+        }
+        var instaClose = document.querySelector('div[role="dialog"] button:has(svg[aria-label*="Close"])');
+        if (instaClose) {
+            try { instaClose.click(); } catch(e) {}
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', dismissAppNag);
+    } else {
+        dismissAppNag();
+    }
+
+    var observer = new MutationObserver(function() {
+        dismissAppNag();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+})();
+"""
+
 // Event-driven, thermal-optimized background audio keep-alive & multi-app media scraper
 private const val BACKGROUND_AUDIO_SCRIPT = """
 (function() {
@@ -625,6 +701,9 @@ object EvaWebViewPool {
                 webChromeClient = object : WebChromeClient() {
                     override fun onProgressChanged(view: WebView?, newProgress: Int) {
                         onProgressChanged(newProgress / 100f)
+                        if (newProgress > 45) {
+                            view?.evaluateJavascript(NATIVE_APP_SHELL_TRANSFORM_SCRIPT, null)
+                        }
                     }
 
                     override fun onReceivedTitle(view: WebView?, title: String?) {
@@ -745,6 +824,7 @@ object EvaWebViewPool {
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         url?.let(onUrlChanged)
+                        view?.evaluateJavascript(NATIVE_APP_SHELL_TRANSFORM_SCRIPT, null)
                         val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
                         view?.evaluateJavascript(script, null)
                     }
@@ -752,6 +832,7 @@ object EvaWebViewPool {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         cookieManager.flush()
+                        view?.evaluateJavascript(NATIVE_APP_SHELL_TRANSFORM_SCRIPT, null)
                         val script = BACKGROUND_AUDIO_SCRIPT.replace("%SERVICE_ID%", service.id)
                         view?.evaluateJavascript(script, null)
                         view?.title?.let { t ->

@@ -79,9 +79,7 @@ import com.example.eva.data.EvaPlayStoreBridgeManager
 import com.example.eva.data.EvaUpdateManager
 import com.example.eva.data.UserSessionManager
 import com.example.eva.model.AppService
-import com.example.eva.service.EvaAmbientNotificationManager
 import com.example.eva.ui.components.CrystalBubble
-import com.example.eva.ui.components.EvaNativeApkInstallDialog
 import com.example.eva.ui.components.EvaUpdateDialog
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.theme.EvaColors
@@ -109,8 +107,6 @@ fun HomeScreen(
     var isSyncingQuota by remember { mutableStateOf(false) }
 
     var selectedDialogTab by remember { mutableStateOf(0) }
-    var preferNativeApk by remember { mutableStateOf(UserSessionManager.isPreferNativeApk(context)) }
-    var installDialogService by remember { mutableStateOf<AppService?>(null) }
     var isPlayStoreBridgeEnabled by remember { mutableStateOf(UserSessionManager.isPlayStoreBridgeConnected(context)) }
     var isHybridSyncing by remember { mutableStateOf(false) }
     var localStorageUsedMb by remember { mutableStateOf(UserSessionManager.getLocalStorageUsedMb(context)) }
@@ -310,7 +306,7 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Native APK / 120 FPS Engine Card (Clickable)
+                // Hybrid Native Engine Card (Clickable)
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -318,7 +314,7 @@ fun HomeScreen(
                         .background(Color.White.copy(alpha = 0.04f))
                         .border(
                             1.dp,
-                            if (preferNativeApk) EvaColors.NeonCyan.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.1f),
+                            EvaColors.NeonCyan.copy(alpha = 0.35f),
                             RoundedCornerShape(14.dp)
                         )
                         .clickable {
@@ -332,19 +328,19 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.Default.Speed,
                         contentDescription = "FPS",
-                        tint = if (preferNativeApk) EvaColors.NeonCyan else Color.White.copy(alpha = 0.6f),
+                        tint = EvaColors.NeonCyan,
                         modifier = Modifier.size(16.dp)
                     )
                     Column {
                         Text(
-                            text = if (preferNativeApk) "Native APK Engine" else "Instant Web Engine",
+                            text = "Hybrid Native Engine",
                             color = Color.White,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (preferNativeApk) "120 FPS Hardware Mode" else "Lightweight Mode",
-                            color = if (preferNativeApk) EvaColors.NeonCyan else EvaColors.TextMuted,
+                            text = "120 FPS All-in-One",
+                            color = EvaColors.NeonCyan,
                             fontSize = 9.sp
                         )
                     }
@@ -494,40 +490,14 @@ fun HomeScreen(
                         visible = true,
                         enter = fadeIn() + slideInVertically(initialOffsetY = { 30 * (index + 1) })
                     ) {
-                    val isInstalled = remember(service) {
-                        EvaPlayStoreBridgeManager.isAppInstalled(context, service.id)
-                    }
-                    CrystalBubble(
-                        service = service,
-                        index = index,
-                        isNativeInstalled = isInstalled,
-                        preferNativeApk = preferNativeApk,
-                        onClick = {
-                            if (preferNativeApk) {
-                                if (isInstalled) {
-                                    EvaAmbientNotificationManager.showActiveAppNotification(
-                                        context = context,
-                                        serviceName = service.name,
-                                        packageName = EvaPlayStoreBridgeManager.getPackageNameForService(service.id) ?: ""
-                                    )
-                                    val launched = EvaPlayStoreBridgeManager.launchNativeApp(context, service.id)
-                                    if (launched) {
-                                        Toast.makeText(
-                                            context,
-                                            "Launching Native ${service.name} • 120 FPS Mode",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        onSelectService(service)
-                                    }
-                                } else {
-                                    installDialogService = service
-                                }
-                            } else {
+                        CrystalBubble(
+                            service = service,
+                            index = index,
+                            onClick = {
+                                // Instant in-app launch inside EVA's 120 FPS Native Hybrid Engine
                                 onSelectService(service)
                             }
-                        }
-                    )
+                        )
                     }
                 }
             }
@@ -722,50 +692,29 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        // TAB 1: Play Store Bridge & Hybrid Hardware Sync
-                        // 0. Prefer Native APK Engine Toggle
-                        Row(
+                        // TAB 1: All-in-One Super-App Architecture & Hardware Savings
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.04f))
+                                .background(EvaColors.NeonCyan.copy(alpha = 0.12f))
                                 .border(1.dp, EvaColors.NeonCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(10.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    text = "Prefer Native APKs",
+                                    text = "All-in-One Super-Engine",
                                     color = Color.White,
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = if (preferNativeApk) "120 FPS GPU Mode (Direct Native)" else "Instant Web Mode (Lightweight)",
-                                    color = if (preferNativeApk) EvaColors.NeonCyan else EvaColors.TextMuted,
-                                    fontSize = 10.sp
+                                    text = "EVA replaces 10+ battery-draining apps. You only install EVA—all apps run natively inside EVA at 120 FPS without requiring standalone app installs.",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 10.5.sp,
+                                    lineHeight = 14.sp
                                 )
                             }
-
-                            Switch(
-                                checked = preferNativeApk,
-                                onCheckedChange = { enabled ->
-                                    preferNativeApk = enabled
-                                    UserSessionManager.setPreferNativeApk(context, enabled)
-                                    Toast.makeText(
-                                        context,
-                                        if (enabled) "Native APK Engine Active" else "Instant Web Mode Active",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = EvaColors.NeonCyan,
-                                    uncheckedThumbColor = Color.Gray,
-                                    uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
-                                )
-                            )
                         }
 
                         // 1. Google Play Store Bridge Toggle
@@ -951,21 +900,6 @@ fun HomeScreen(
         EvaUpdateDialog(
             updateInfo = manualUpdate!!,
             onDismiss = { manualUpdate = null }
-        )
-    }
-
-    if (installDialogService != null) {
-        EvaNativeApkInstallDialog(
-            service = installDialogService!!,
-            onDismiss = { installDialogService = null },
-            onInstallApk = { srv ->
-                installDialogService = null
-                EvaPlayStoreBridgeManager.installNativeApp(context, srv.id)
-            },
-            onLaunchWebFallback = { srv ->
-                installDialogService = null
-                onSelectService(srv)
-            }
         )
     }
 }

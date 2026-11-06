@@ -2,5 +2,5 @@
   "versionCode": 11,
   "versionName": "2.0",
   "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v2.0_Release.apk",
-  "changelog": "EVA Super-App v2.0: Full Native APK Execution Engine (120 FPS hardware acceleration), Ambient Super-App Controller, 1-tap Play Store installation modal, and Cloud Hybrid Storage offloading (~2.4 GB device storage saved)."
+  "changelog": "EVA v2.0 All-in-One Super-App: Replaces 10+ battery-draining apps into a single 1.5MB native hybrid engine. Native UI shell transform (strips web headers, 'open in app' prompts), 120 FPS hardware acceleration, zero external app redirects, 15 GB Google Cloud Vault sync, and ~2.4 GB device storage saved."
 }
