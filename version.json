@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
-  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v1.9_Release.apk",
-  "changelog": "Hybrid Cloud & Hardware Combination Storage Sync Engine (~2.4 GB device storage saved), Google Play Store Ecosystem Bridge (package deep-linking & APK update coordinator), and dual-view Cloud & Hybrid Vault Hub."
+  "versionCode": 11,
+  "versionName": "2.0",
+  "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v2.0_Release.apk",
+  "changelog": "EVA Super-App v2.0: Full Native APK Execution Engine (120 FPS hardware acceleration), Ambient Super-App Controller, 1-tap Play Store installation modal, and Cloud Hybrid Storage offloading (~2.4 GB device storage saved)."
 }

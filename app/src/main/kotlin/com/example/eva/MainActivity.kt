@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.eva.data.AppServiceCatalog
 import com.example.eva.security.EvaPermissionManager
 import com.example.eva.security.SecurityGuard
+import com.example.eva.service.EvaAmbientNotificationManager
 import com.example.eva.service.EvaMediaCoordinator
 import com.example.eva.service.EvaPipDecisionEngine
 import com.example.eva.ui.components.EvaWebViewPool
@@ -108,6 +109,12 @@ class MainActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
         EvaPipDecisionEngine.isInPipMode = isInPictureInPictureMode
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Clear ambient controller notification when returning to EVA Hub
+        EvaAmbientNotificationManager.dismissNotification(this)
     }
 
     override fun onPause() {

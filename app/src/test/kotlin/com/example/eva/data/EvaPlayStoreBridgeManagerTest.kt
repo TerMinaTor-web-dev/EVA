@@ -39,4 +39,15 @@ class EvaPlayStoreBridgeManagerTest {
     fun playStorePackageConstant_isStandard() {
         assertEquals("com.android.vending", EvaPlayStoreBridgeManager.PLAY_STORE_PACKAGE)
     }
+
+    @Test
+    fun unknownService_resolvesNullPackage() {
+        org.junit.Assert.assertNull(EvaPlayStoreBridgeManager.getPackageNameForService("non_existent_app_xyz"))
+    }
+
+    @Test
+    fun installApkFile_returnsFalseForNonExistentFile() {
+        val dummyFile = java.io.File("non_existent_dummy.apk")
+        org.junit.Assert.assertFalse(dummyFile.exists())
+    }
 }

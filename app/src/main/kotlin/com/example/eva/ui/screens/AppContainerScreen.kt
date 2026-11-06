@@ -31,12 +31,29 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.example.eva.data.EvaPlayStoreBridgeManager
 import com.example.eva.model.AppService
+import com.example.eva.service.EvaAmbientNotificationManager
 import com.example.eva.service.EvaPipDecisionEngine
 import com.example.eva.ui.components.EvaAiSheet
 import com.example.eva.ui.components.EvaWebViewPool
 import com.example.eva.ui.components.FloatingPillDock
 import com.example.eva.ui.components.MultiTabWebViewContainer
+import com.example.eva.ui.theme.EvaColors
 
 @Composable
 fun AppContainerScreen(
@@ -181,6 +198,75 @@ fun AppContainerScreen(
                 .background(Color(0xFF090A10))
                 .statusBarsPadding()
         ) {
+            val isNativeInstalled = remember(activeService) {
+                EvaPlayStoreBridgeManager.isAppInstalled(context, activeService.id)
+            }
+
+            // High-Performance Native APK Bridge Banner
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0C0E17))
+                    .border(
+                        0.5.dp,
+                        if (isNativeInstalled) EvaColors.NeonCyan.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f)
+                    )
+                    .clickable {
+                        if (isNativeInstalled) {
+                            EvaAmbientNotificationManager.showActiveAppNotification(
+                                context = context,
+                                serviceName = activeService.name,
+                                packageName = EvaPlayStoreBridgeManager.getPackageNameForService(activeService.id) ?: ""
+                            )
+                            EvaPlayStoreBridgeManager.launchNativeApp(context, activeService.id)
+                        } else {
+                            EvaPlayStoreBridgeManager.installNativeApp(context, activeService.id)
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isNativeInstalled) Icons.Default.FlashOn else Icons.Default.Download,
+                        contentDescription = null,
+                        tint = if (isNativeInstalled) EvaColors.NeonCyan else EvaColors.NeonPurple,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = if (isNativeInstalled) "Running Web View • Switch to Native APK" else "Running Web View • Install Native APK",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (isNativeInstalled) EvaColors.NeonCyan.copy(alpha = 0.2f) else EvaColors.NeonPurple.copy(alpha = 0.25f)
+                        )
+                        .border(
+                            0.5.dp,
+                            if (isNativeInstalled) EvaColors.NeonCyan else EvaColors.NeonPurple,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (isNativeInstalled) "Launch APK" else "Get APK",
+                        color = if (isNativeInstalled) EvaColors.NeonCyan else Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             // 1. Phone Ratio Canvas for Active App (100% unobstructed, zero overlay interference)
             Box(
                 modifier = Modifier

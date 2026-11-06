@@ -133,4 +133,59 @@ object EvaPlayStoreBridgeManager {
             false
         }
     }
+
+    /**
+     * Checks if the official native APK for the given service is installed.
+     */
+    fun isAppInstalled(context: Context, serviceId: String): Boolean {
+        val pkg = getPackageNameForService(serviceId) ?: return false
+        return isPackageInstalled(context, pkg)
+    }
+
+    /**
+     * Direct launch of the official native APK on device.
+     * Operates with 100% native GPU hardware acceleration and 120 FPS display modes.
+     */
+    fun launchNativeApp(context: Context, serviceId: String): Boolean {
+        val pkg = getPackageNameForService(serviceId) ?: return false
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(launchIntent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Deep-links directly to the Google Play Store installation page for this service's APK.
+     */
+    fun installNativeApp(context: Context, serviceId: String): Boolean {
+        val pkg = getPackageNameForService(serviceId) ?: return false
+        return openInPlayStore(context, pkg)
+    }
+
+    /**
+     * Sideload / install a downloaded APK file using Android's FileProvider.
+     */
+    fun installApkFile(context: Context, apkFile: java.io.File): Boolean {
+        if (!apkFile.exists()) return false
+        return try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(installIntent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
 }

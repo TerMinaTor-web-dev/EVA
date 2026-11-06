@@ -30,6 +30,8 @@ object UserSessionManager {
     private const val KEY_LAST_HYBRID_SYNC = "last_hybrid_sync"
     private const val KEY_LOCAL_STORAGE_USED_BYTES = "local_storage_used_bytes"
     private const val KEY_HARDWARE_SPACE_SAVED_MB = "hardware_space_saved_mb"
+    private const val KEY_PREFER_NATIVE_APK = "eva_prefer_native_apk"
+    private const val KEY_EXEC_MODE_PREFIX = "eva_exec_mode_"
     private const val FOURTEEN_DAYS_MILLIS = 14L * 24 * 60 * 60 * 1000L
 
     /** Standard Google Drive Free Storage: 15 GB = 16,106,127,360 bytes */
@@ -225,6 +227,22 @@ object UserSessionManager {
             .putInt(KEY_HARDWARE_SPACE_SAVED_MB, spaceSavedMb)
             .putLong(KEY_LAST_HYBRID_SYNC, System.currentTimeMillis())
             .apply()
+    }
+
+    fun isPreferNativeApk(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_PREFER_NATIVE_APK, true)
+    }
+
+    fun setPreferNativeApk(context: Context, prefer: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_PREFER_NATIVE_APK, prefer).apply()
+    }
+
+    fun getAppExecutionMode(context: Context, serviceId: String): String {
+        return getPrefs(context).getString(KEY_EXEC_MODE_PREFIX + serviceId.lowercase(), "NATIVE") ?: "NATIVE"
+    }
+
+    fun setAppExecutionMode(context: Context, serviceId: String, mode: String) {
+        getPrefs(context).edit().putString(KEY_EXEC_MODE_PREFIX + serviceId.lowercase(), mode).apply()
     }
 
     fun logout(context: Context) {

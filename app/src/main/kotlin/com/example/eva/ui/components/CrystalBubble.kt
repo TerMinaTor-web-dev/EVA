@@ -40,7 +40,9 @@ fun CrystalBubble(
     service: AppService,
     index: Int,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isNativeInstalled: Boolean = false,
+    preferNativeApk: Boolean = true
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -137,6 +139,46 @@ fun CrystalBubble(
                 serviceId = service.id,
                 modifier = Modifier.size(38.dp)
             )
+
+            // Ecosystem Mode Indicator Pill Badge
+            if (isNativeInstalled) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 4.dp, end = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF00E676), Color(0xFF00B0FF))
+                            )
+                        )
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "APK",
+                        color = Color.Black,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            } else if (preferNativeApk) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 4.dp, end = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.14f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "GET",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
