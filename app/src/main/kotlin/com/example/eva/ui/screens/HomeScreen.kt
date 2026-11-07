@@ -167,14 +167,26 @@ fun HomeScreen(
         onSelectService(customService)
     }
 
-    // Filter services based on category
+    // Filter services based on category & real-time search query
     val allServices = AppServiceCatalog.services
-    val filteredServices = remember(selectedCategory) {
-        when (selectedCategory) {
+    val filteredServices = remember(selectedCategory, omniQuery) {
+        val query = omniQuery.trim()
+        val baseList = when (selectedCategory) {
+            "Shopping" -> allServices.filter { it.category in listOf("Shopping", "Fashion") || it.id in listOf("flipkart", "amazon", "myntra") }
+            "Quick Commerce" -> allServices.filter { it.category in listOf("Quick Commerce", "Grocery") || it.id in listOf("instamart", "blinkit") }
             "Social" -> allServices.filter { it.category == "Social" || it.id in listOf("instagram", "facebook", "twitter") }
             "Media" -> allServices.filter { it.category in listOf("Video", "Music") || it.id in listOf("youtube", "ytmusic", "spotify") }
             "Community" -> allServices.filter { it.category in listOf("Community", "Professional") || it.id in listOf("reddit", "linkedin") }
             else -> allServices
+        }
+        if (query.isNotBlank() && !query.startsWith("http://") && !query.startsWith("https://")) {
+            baseList.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                        it.description.contains(query, ignoreCase = true) ||
+                        it.category.contains(query, ignoreCase = true)
+            }
+        } else {
+            baseList
         }
     }
 
@@ -396,7 +408,7 @@ fun HomeScreen(
                 onValueChange = { omniQuery = it },
                 placeholder = {
                     Text(
-                        text = "Search 10+ apps or enter URL...",
+                        text = "Search 13+ apps or enter URL...",
                         color = EvaColors.TextMuted,
                         fontSize = 12.5.sp
                     )
@@ -465,7 +477,7 @@ fun HomeScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val categories = listOf("All", "Social", "Media", "Community")
+                val categories = listOf("All", "Shopping", "Quick Commerce", "Social", "Media", "Community")
                 categories.forEach { cat ->
                     val isSelected = selectedCategory == cat
                     val bgColor by animateColorAsState(

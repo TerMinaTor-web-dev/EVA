@@ -69,6 +69,11 @@ fun BentoServiceCard(
         "linkedin" -> "Professional Network"
         "facebook" -> "Social Feed & Messages"
         "twitter" -> "Real-time Global Pulse"
+        "flipkart" -> "Deals, Mobiles & SuperCoins"
+        "amazon" -> "Prime Fast Delivery & Pay"
+        "myntra" -> "Runway Trends & Styles"
+        "instamart" -> "10-Min Instant Grocery Drop"
+        "blinkit" -> "Instant Doorstep Essentials"
         else -> "Hardware Accelerated"
     }
 

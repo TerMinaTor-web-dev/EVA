@@ -29,6 +29,11 @@ fun AppBrandIcon(serviceId: String, modifier: Modifier = Modifier.size(34.dp)) {
             "facebook" -> FacebookIcon()
             "twitter" -> XTwitterIcon()
             "reddit" -> RedditIcon()
+            "flipkart" -> FlipkartIcon()
+            "amazon" -> AmazonIcon()
+            "myntra" -> MyntraIcon()
+            "instamart" -> InstamartIcon()
+            "blinkit" -> BlinkitIcon()
             else -> DefaultAppIcon()
         }
     }
@@ -352,6 +357,213 @@ private fun RedditIcon() {
             cap = StrokeCap.Round
         )
         drawCircle(color = Color.White, radius = w * 0.06f, center = Offset(w * 0.66f, h * 0.12f))
+    }
+}
+
+@Composable
+private fun FlipkartIcon() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // Bag handle
+        drawArc(
+            color = Color.White,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.35f, h * 0.12f),
+            size = Size(w * 0.30f, h * 0.26f),
+            style = Stroke(width = w * 0.08f, cap = StrokeCap.Round)
+        )
+
+        // Bag Body
+        val bagPath = Path().apply {
+            moveTo(w * 0.20f, h * 0.32f)
+            lineTo(w * 0.80f, h * 0.32f)
+            lineTo(w * 0.74f, h * 0.88f)
+            lineTo(w * 0.26f, h * 0.88f)
+            close()
+        }
+        drawPath(bagPath, Color.White, style = Fill)
+
+        // Flipkart Yellow Speed "F"
+        val fPath = Path().apply {
+            moveTo(w * 0.38f, h * 0.42f)
+            lineTo(w * 0.62f, h * 0.42f)
+            lineTo(w * 0.58f, h * 0.52f)
+            lineTo(w * 0.48f, h * 0.52f)
+            lineTo(w * 0.46f, h * 0.60f)
+            lineTo(w * 0.56f, h * 0.60f)
+            lineTo(w * 0.53f, h * 0.68f)
+            lineTo(w * 0.43f, h * 0.68f)
+            lineTo(w * 0.38f, h * 0.80f)
+            lineTo(w * 0.32f, h * 0.80f)
+            close()
+        }
+        drawPath(fPath, Color(0xFFFFC200), style = Fill)
+    }
+}
+
+@Composable
+private fun AmazonIcon() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // Letter "a" curve
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.18f,
+            center = Offset(w * 0.46f, h * 0.38f),
+            style = Stroke(width = w * 0.08f)
+        )
+        drawLine(
+            color = Color.White,
+            start = Offset(w * 0.64f, h * 0.24f),
+            end = Offset(w * 0.64f, h * 0.54f),
+            strokeWidth = w * 0.08f,
+            cap = StrokeCap.Round
+        )
+
+        // Signature orange smile arrow curve
+        val smileColor = Color(0xFFFF9900)
+        val smilePath = Path().apply {
+            moveTo(w * 0.22f, h * 0.68f)
+            cubicTo(w * 0.40f, h * 0.84f, w * 0.64f, h * 0.82f, w * 0.78f, h * 0.68f)
+        }
+        drawPath(smilePath, smileColor, style = Stroke(width = w * 0.08f, cap = StrokeCap.Round))
+
+        // Arrowhead
+        val arrowPath = Path().apply {
+            moveTo(w * 0.70f, h * 0.66f)
+            lineTo(w * 0.84f, h * 0.67f)
+            lineTo(w * 0.76f, h * 0.80f)
+            close()
+        }
+        drawPath(arrowPath, smileColor, style = Fill)
+    }
+}
+
+@Composable
+private fun MyntraIcon() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // Left ribbon
+        val leftRibbon = Path().apply {
+            moveTo(w * 0.20f, h * 0.76f)
+            cubicTo(w * 0.16f, h * 0.40f, w * 0.30f, h * 0.24f, w * 0.44f, h * 0.46f)
+            lineTo(w * 0.50f, h * 0.56f)
+            cubicTo(w * 0.36f, h * 0.34f, w * 0.24f, h * 0.50f, w * 0.28f, h * 0.76f)
+            close()
+        }
+        drawPath(leftRibbon, Color(0xFFFF3F6C), style = Fill)
+
+        // Right ribbon
+        val rightRibbon = Path().apply {
+            moveTo(w * 0.80f, h * 0.76f)
+            cubicTo(w * 0.84f, h * 0.40f, w * 0.70f, h * 0.24f, w * 0.56f, h * 0.46f)
+            lineTo(w * 0.50f, h * 0.56f)
+            cubicTo(w * 0.64f, h * 0.34f, w * 0.76f, h * 0.50f, w * 0.72f, h * 0.76f)
+            close()
+        }
+        drawPath(rightRibbon, Color(0xFFF16521), style = Fill)
+
+        // Center overlapping dot
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.07f,
+            center = Offset(w * 0.50f, h * 0.56f),
+            style = Fill
+        )
+    }
+}
+
+@Composable
+private fun InstamartIcon() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // Delivery grocery bag
+        val bagPath = Path().apply {
+            moveTo(w * 0.22f, h * 0.32f)
+            lineTo(w * 0.78f, h * 0.32f)
+            lineTo(w * 0.72f, h * 0.86f)
+            lineTo(w * 0.28f, h * 0.86f)
+            close()
+        }
+        drawPath(bagPath, Color.White, style = Fill)
+
+        // Handles
+        drawArc(
+            color = Color.White,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.36f, h * 0.16f),
+            size = Size(w * 0.28f, h * 0.24f),
+            style = Stroke(width = w * 0.08f, cap = StrokeCap.Round)
+        )
+
+        // Lightning instant delivery bolt
+        val boltColor = Color(0xFFFC8019)
+        val boltPath = Path().apply {
+            moveTo(w * 0.53f, h * 0.40f)
+            lineTo(w * 0.41f, h * 0.57f)
+            lineTo(w * 0.51f, h * 0.57f)
+            lineTo(w * 0.47f, h * 0.76f)
+            lineTo(w * 0.60f, h * 0.54f)
+            lineTo(w * 0.50f, h * 0.54f)
+            close()
+        }
+        drawPath(boltPath, boltColor, style = Fill)
+    }
+}
+
+@Composable
+private fun BlinkitIcon() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val w = size.width
+        val h = size.height
+
+        // Outer rounded badge
+        drawRoundRect(
+            color = Color.White,
+            topLeft = Offset(w * 0.14f, h * 0.14f),
+            size = Size(w * 0.72f, h * 0.72f),
+            cornerRadius = CornerRadius(w * 0.22f, h * 0.22f),
+            style = Fill
+        )
+
+        // Emerald green "b" shape
+        val green = Color(0xFF0C831F)
+        val bStem = Path().apply {
+            moveTo(w * 0.34f, h * 0.26f)
+            lineTo(w * 0.44f, h * 0.26f)
+            lineTo(w * 0.44f, h * 0.74f)
+            lineTo(w * 0.34f, h * 0.74f)
+            close()
+        }
+        drawPath(bStem, green, style = Fill)
+
+        // "b" circle
+        drawCircle(
+            color = green,
+            radius = w * 0.16f,
+            center = Offset(w * 0.52f, h * 0.58f),
+            style = Stroke(width = w * 0.09f)
+        )
+
+        // Yellow inner center dot
+        drawCircle(
+            color = Color(0xFFF7C325),
+            radius = w * 0.06f,
+            center = Offset(w * 0.52f, h * 0.58f),
+            style = Fill
+        )
     }
 }
 

@@ -78,6 +78,51 @@ object AppServiceCatalog {
             primaryColor = Color(0xFFFF4500),
             secondaryColor = Color(0xFFCC3700),
             description = "Communities, Discussions & Topics"
+        ),
+        AppService(
+            id = "flipkart",
+            name = "Flipkart",
+            url = "https://www.flipkart.com",
+            category = "Shopping",
+            primaryColor = Color(0xFF2874F0),
+            secondaryColor = Color(0xFFFFC200),
+            description = "Online Shopping, Deals, Mobiles & SuperCoins"
+        ),
+        AppService(
+            id = "amazon",
+            name = "Amazon",
+            url = "https://www.amazon.in",
+            category = "Shopping",
+            primaryColor = Color(0xFFFF9900),
+            secondaryColor = Color(0xFF232F3E),
+            description = "Prime Fast Delivery, Electronics & Amazon Pay"
+        ),
+        AppService(
+            id = "myntra",
+            name = "Myntra",
+            url = "https://www.myntra.com",
+            category = "Fashion",
+            primaryColor = Color(0xFFFF3F6C),
+            secondaryColor = Color(0xFFF16521),
+            description = "Trendsetting Fashion, Beauty & Lifestyle Store"
+        ),
+        AppService(
+            id = "instamart",
+            name = "Instamart",
+            url = "https://www.swiggy.com/instamart",
+            category = "Quick Commerce",
+            primaryColor = Color(0xFFFC8019),
+            secondaryColor = Color(0xFF6B3CE9),
+            description = "Instant Groceries & Essentials Delivered in 10 Mins"
+        ),
+        AppService(
+            id = "blinkit",
+            name = "Blinkit",
+            url = "https://blinkit.com",
+            category = "Quick Commerce",
+            primaryColor = Color(0xFFF7C325),
+            secondaryColor = Color(0xFF0C831F),
+            description = "Instant Groceries Delivered to Doorstep in 10 Mins"
         )
     )
 

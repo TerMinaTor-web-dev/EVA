@@ -13,6 +13,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -82,6 +83,8 @@ private const val NATIVE_APP_SHELL_TRANSFORM_SCRIPT = """
         body {
             overscroll-behavior-y: contain !important;
             -webkit-font-smoothing: antialiased !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-behavior: smooth !important;
         }
         ::-webkit-scrollbar {
             display: none !important;
@@ -91,6 +94,13 @@ private const val NATIVE_APP_SHELL_TRANSFORM_SCRIPT = """
         [href*="instagram://"], [href*="play.google.com/store/apps/details?id=com.instagram"],
         .x1c4vz4f, div:has(> [aria-label*="Get Instagram"]),
         ytm-smart-app-banner, .mobile-topbar-header [aria-label*="Open app"], ytm-promoted-sparkles-web-renderer,
+        ytm-mealbar-promo-renderer, ytm-upsell-dialog-renderer, ytm-paid-content-overlay-renderer,
+        #app-install-button, .fullscreen-consent-banner, ytm-notification-action-renderer,
+        [class*="download-app-banner"], [class*="app-download-strip"], .fk-modal, a[href*="flipkart.com/download"],
+        #nav-gw-mobile-app-banner, .mobile-app-banner, [id*="app-banner"],
+        .banner-downloadApp, .download-app-banner, [class*="downloadApp"], .app-download-ribbon,
+        [class*="app-download-banner"], [class*="open-in-app"], [class*="AppBanner"], [class*="SmartBanner"],
+        [class*="DownloadAppBanner"], div:has(> a[href*="blinkit.com/download"]),
         .XPromoPopup, shreddit-async-loader[bundlename*="xpromo"], [slot="bottom-banner"],
         reddit-header-action-items a[href*="reddit.com/get-app"],
         [data-testid*="banner-open-app"], .spotify-app-banner,
@@ -124,6 +134,23 @@ private const val NATIVE_APP_SHELL_TRANSFORM_SCRIPT = """
         var instaClose = document.querySelector('div[role="dialog"] button:has(svg[aria-label*="Close"])');
         if (instaClose) {
             try { instaClose.click(); } catch(e) {}
+        }
+        var ytDismiss = document.querySelector('ytm-mealbar-promo-renderer button[aria-label*="No thanks"], ytm-mealbar-promo-renderer button[aria-label*="Dismiss"], ytm-mealbar-promo-renderer c3-next-button');
+        if (ytDismiss) {
+            try { ytDismiss.click(); } catch(e) {}
+        }
+
+        // Hardware-accelerated Video Performance Optimizer (YouTube, Reels, Video streams)
+        var videos = document.querySelectorAll('video');
+        for (var i = 0; i < videos.length; i++) {
+            var v = videos[i];
+            if (!v.getAttribute('data-eva-hw')) {
+                v.setAttribute('data-eva-hw', '1');
+                v.setAttribute('playsinline', 'true');
+                v.setAttribute('webkit-playsinline', 'true');
+                v.style.transform = 'translateZ(0)';
+                v.style.backfaceVisibility = 'hidden';
+            }
         }
     }
 
@@ -659,14 +686,18 @@ object EvaWebViewPool {
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
 
-                // High-performance hardware acceleration
+                // High-performance hardware acceleration & native scroll smoothness
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
 
                 // Chromium Web Core Configuration driven by ServiceWebProfile
                 settings.apply {
                     javaScriptEnabled = profile.allowJavaScript
                     domStorageEnabled = profile.allowDomStorage
                     cacheMode = WebSettings.LOAD_DEFAULT
+                    offscreenPreRaster = true // Smooth scrolling without blank tiles
                     useWideViewPort = true
                     loadWithOverviewMode = true
                     setSupportZoom(true)
@@ -679,6 +710,13 @@ object EvaWebViewPool {
                     setNeedInitialFocus(false)
                     textZoom = 100
 
+                    // Geolocation database support for Quick Commerce (Instamart, Blinkit)
+                    setGeolocationEnabled(profile.allowGeolocation)
+
+                    // Window creation & popups for Payment Gateways & OAuth
+                    setSupportMultipleWindows(profile.allowPopups)
+                    javaScriptCanOpenWindowsAutomatically = profile.allowPopups
+
                     // SECURITY: Strict Local File Sandbox Isolation
                     allowFileAccess = false
                     allowContentAccess = false
@@ -689,7 +727,6 @@ object EvaWebViewPool {
 
                     // Background Media Playback & WebRTC
                     mediaPlaybackRequiresUserGesture = profile.mediaPlaybackRequiresUserGesture
-                    javaScriptCanOpenWindowsAutomatically = profile.allowPopups
 
                     // Serve High-Fidelity Chrome Mobile or Desktop Engine per profile
                     userAgentString = profile.resolveUserAgent(CHROME_MOBILE_USER_AGENT, DESKTOP_USER_AGENT)
@@ -778,6 +815,32 @@ object EvaWebViewPool {
                         onCustomViewHideAction?.invoke()
                     }
 
+                    // Geolocation for Instant Delivery / Location-Aware Services
+                    override fun onGeolocationPermissionsShowPrompt(
+                        origin: String?,
+                        callback: GeolocationPermissions.Callback?
+                    ) {
+                        if (origin != null && profile.allowGeolocation && profile.isOriginAllowed(origin)) {
+                            callback?.invoke(origin, true, true)
+                        } else {
+                            callback?.invoke(origin, false, false)
+                        }
+                    }
+
+                    // Window & Popup Handling for Payment Gateways (UPI/Cards/Netbanking) & Sign-In
+                    override fun onCreateWindow(
+                        view: WebView?,
+                        isDialog: Boolean,
+                        isUserGesture: Boolean,
+                        resultMsg: android.os.Message?
+                    ): Boolean {
+                        if (!profile.allowPopups || resultMsg == null) return false
+                        val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                        transport.webView = view
+                        resultMsg.sendToTarget()
+                        return true
+                    }
+
                     // Native Storage File Chooser for Photos, Videos, and Document Uploads
                     override fun onShowFileChooser(
                         webView: WebView?,
@@ -836,6 +899,15 @@ object EvaWebViewPool {
                         if (scheme == "intent" || url.startsWith("intent://")) {
                             try {
                                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                                if (intent.scheme == "upi") {
+                                    try {
+                                        context.startActivity(intent)
+                                        return true
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "No UPI payment app available.", Toast.LENGTH_SHORT).show()
+                                        return true
+                                    }
+                                }
                                 val fallbackUrl = intent.getStringExtra("browser_fallback_url")
                                 if (!fallbackUrl.isNullOrBlank()) {
                                     view?.loadUrl(fallbackUrl)
@@ -850,7 +922,19 @@ object EvaWebViewPool {
                             return true
                         }
 
-                        // 4. Map app-specific deep links back into secure Web URLs
+                        // 4. Native UPI Payments: Forward payment links to installed UPI apps (PhonePe, GPay, Paytm)
+                        if (scheme == "upi" || url.startsWith("upi://")) {
+                            try {
+                                val upiIntent = Intent(Intent.ACTION_VIEW, uri)
+                                context.startActivity(upiIntent)
+                                return true
+                            } catch (_: Exception) {
+                                Toast.makeText(context, "No UPI app found. Please complete payment via card/netbanking.", Toast.LENGTH_SHORT).show()
+                                return true
+                            }
+                        }
+
+                        // 5. Map app-specific deep links back into secure Web URLs inside EVA
                         when {
                             url.startsWith("instagram://") -> {
                                 val path = url.substringAfter("instagram://")
@@ -875,6 +959,26 @@ object EvaWebViewPool {
                             url.startsWith("fb://") -> {
                                 val path = url.substringAfter("fb://")
                                 view?.loadUrl("https://www.facebook.com/$path")
+                                return true
+                            }
+                            url.startsWith("swiggy://") -> {
+                                val path = url.substringAfter("swiggy://")
+                                view?.loadUrl("https://www.swiggy.com/$path")
+                                return true
+                            }
+                            url.startsWith("grofers://") || url.startsWith("blinkit://") -> {
+                                val path = url.substringAfter("://")
+                                view?.loadUrl("https://blinkit.com/$path")
+                                return true
+                            }
+                            url.startsWith("flipkart://") -> {
+                                val path = url.substringAfter("flipkart://")
+                                view?.loadUrl("https://www.flipkart.com/$path")
+                                return true
+                            }
+                            url.startsWith("myntra://") -> {
+                                val path = url.substringAfter("myntra://")
+                                view?.loadUrl("https://www.myntra.com/$path")
                                 return true
                             }
                         }

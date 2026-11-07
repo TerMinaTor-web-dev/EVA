@@ -30,6 +30,24 @@ class ServiceWebProfileRegistryTest {
         assertEquals(UserAgentType.DESKTOP_CHROME, whatsappProfile.userAgentType)
         assertTrue(whatsappProfile.allowMicrophone)
         assertTrue(whatsappProfile.allowCamera)
+
+        val flipkartProfile = ServiceWebProfileRegistry.getProfile("flipkart", "https://www.flipkart.com")
+        assertEquals("flipkart", flipkartProfile.serviceId)
+        assertTrue(flipkartProfile.allowGeolocation)
+        assertTrue(flipkartProfile.allowPopups)
+        assertTrue(flipkartProfile.isOriginAllowed("https://www.flipkart.com"))
+        assertTrue(flipkartProfile.isOriginAllowed("https://phonepe.com"))
+
+        val instamartProfile = ServiceWebProfileRegistry.getProfile("instamart", "https://www.swiggy.com/instamart")
+        assertEquals("instamart", instamartProfile.serviceId)
+        assertTrue(instamartProfile.allowGeolocation)
+        assertTrue(instamartProfile.isOriginAllowed("https://www.swiggy.com"))
+
+        val blinkitProfile = ServiceWebProfileRegistry.getProfile("blinkit", "https://blinkit.com")
+        assertEquals("blinkit", blinkitProfile.serviceId)
+        assertTrue(blinkitProfile.allowGeolocation)
+        assertTrue(blinkitProfile.isOriginAllowed("https://blinkit.com"))
+        assertTrue(blinkitProfile.isOriginAllowed("https://grofers.com"))
     }
 
     @Test

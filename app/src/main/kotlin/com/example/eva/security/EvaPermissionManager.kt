@@ -18,7 +18,9 @@ object EvaPermissionManager {
     fun getRequiredPermissions(): Array<String> {
         val permissions = mutableListOf(
             Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
         // Storage & Media permissions based on Android OS version
@@ -50,10 +52,11 @@ object EvaPermissionManager {
         val storageGranted: Boolean,
         val micGranted: Boolean,
         val cameraGranted: Boolean,
+        val locationGranted: Boolean,
         val notificationsGranted: Boolean
     ) {
         val allGranted: Boolean
-            get() = storageGranted && micGranted && cameraGranted && notificationsGranted
+            get() = storageGranted && micGranted && cameraGranted && locationGranted && notificationsGranted
     }
 
     fun getDetailedStatus(context: Context): PermissionStatus {
@@ -73,6 +76,11 @@ object EvaPermissionManager {
             Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
 
+        val locationGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
         val notificationsGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context,
@@ -86,6 +94,7 @@ object EvaPermissionManager {
             storageGranted = storageGranted,
             micGranted = micGranted,
             cameraGranted = cameraGranted,
+            locationGranted = locationGranted,
             notificationsGranted = notificationsGranted
         )
     }

@@ -2,5 +2,5 @@
   "versionCode": 12,
   "versionName": "3.0",
   "downloadUrl": "https://github.com/TerMinaTor-web-dev/EVA/raw/main/release/EVA_v3.0_Release.apk",
-  "changelog": "EVA 3.0 Web Experience: Bounded LRU WebView engine (max 3 instances, 64% RAM reduction), Chromium onRenderProcessGone crash auto-recovery, granular per-service WebProfile security registry with hardware permission gating, native dock forward/backward navigation, real-time offline detection banner, native DownloadManager with authenticated cookie synchronization, and Android AudioManager focus integration with ducking support."
+  "changelog": "EVA 3.0: High-fidelity web platform upgrade with Flipkart, Amazon, Myntra, Swiggy Instamart, and Blinkit integration. Features hardware-accelerated video & smooth scrolling (offscreen pre-rasterization), HTML5 Geolocation prompt handling, seamless UPI payment intent routing, native YouTube playback optimizations, and complete app nag suppression."
 }

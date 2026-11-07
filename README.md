@@ -47,25 +47,27 @@ You can download and install the official signed release APK directly on any And
 
 Modern mobile operating systems force users to install dozens of heavy, background-churning applications that consume gigabytes of storage, drain battery through persistent telemetry, and clutter the device.
 
-**EVA** unifies your essential digital experiences—**Instagram, WhatsApp, YouTube, YouTube Music, Spotify, LinkedIn, Facebook, X (Twitter), Reddit, and any custom web service**—into one cohesive, ultra-responsive native container with:
+**EVA** unifies your essential digital experiences—**YouTube, YouTube Music, Spotify, Instagram, WhatsApp, Flipkart, Amazon, Myntra, Swiggy Instamart, Blinkit, LinkedIn, Facebook, X (Twitter), Reddit, and any custom web service**—into one cohesive, ultra-responsive native container with:
 - **EVA 3.0 Bounded Web Engine**: High-performance LRU-cached instance pooling strictly capped at 3 concurrent WebViews with inactive tab CPU/GPU suspension, saving **~64% peak RAM** (~160–195 MB vs 550 MB+).
 - **Chromium Renderer Crash Auto-Recovery**: `onRenderProcessGone` handler intercepts and recovers from isolated WebKit crashes without crashing the host app.
-- **Granular Security WebProfiles**: Per-service origin allowlists and hardware permission gating (Camera, Microphone, Storage) via `ServiceWebProfileRegistry`.
+- **Granular Security WebProfiles**: Per-service origin allowlists and hardware permission gating (Camera, Microphone, Storage, Geolocation, Popups) via `ServiceWebProfileRegistry`.
+- **E-Commerce & Quick-Commerce Integration**: Full Flipkart, Amazon, Myntra, Swiggy Instamart, and Blinkit functionality with HTML5 Geolocation prompt handling for instant 10-minute grocery delivery and address detection.
+- **Native UPI Checkout Engine**: Intercepts payment deep links (`upi://pay`, `phonepe://`, `paytmmp://`, `gpay://`) directly forwarding to installed UPI apps for 1-tap checkout, returning seamlessly to EVA.
+- **Optimized YouTube Video Playback**: GPU-accelerated video compositing (`translateZ(0)`), `playsinline`, auto-landscape theater mode, immersive sticky navigation bar hiding, zero-delay autoplay gestures, and screen wake lock.
 - **Native Navigation Dock**: Direct Forward, Back, Reload, Home Hub, and AI Assistant controls in the sleek floating taskbar dock.
 - **Real-Time Offline Status**: Active `ConnectivityManager.NetworkCallback` with cybernetic reconnect banner and stateful reload.
 - **Enterprise Download Manager**: Native Android `DownloadManager` queuing with authenticated cookie/User-Agent forwarding, unique filename collision resolution, and `FileProvider` safe opening.
 - **Native Android Audio Focus**: Full `AudioManagerCompat` integration with ducking and transient call interruption handling in `EvaMediaPlaybackService`.
 - **Live Engine Diagnostics**: Real-time telemetry monitoring heap allocation, init latency, switch times, and crash recoveries without harvesting user data.
-- **All-in-One Super-App (0 External Apps Needed)**: Install ONLY EVA on your phone. Replaces 10+ battery-draining apps into a single 1.5 MB super-engine. Every app runs directly inside EVA with zero external app redirects.
-- **Native Hybrid App Shell Transform**: Automatically decrapifies web interfaces: strips away annoying "Open in App", "Get Instagram", "Continue in Reddit App" banners, suppresses browser scrollbars, and applies native momentum scrolling and zero-delay touch physics.
+- **All-in-One Super-App (0 External Apps Needed)**: Install ONLY EVA on your phone. Replaces 13+ battery-draining apps into a single 1.5 MB super-engine. Every app runs directly inside EVA with zero external app redirects.
+- **Native Hybrid App Shell Transform**: Automatically decrapifies web interfaces: strips away annoying "Open in App", "Get Instagram", "Continue in Reddit App", and shopping install banners, suppresses browser scrollbars, and applies native momentum scrolling and zero-delay touch physics.
 - **Hybrid Cloud & Hardware Combination Storage Sync Engine**: High-performance local flash caching combined with automatic background synchronization to Google Drive `/EVA_CloudSpace/`. Saves **~2.4 GB of physical device storage**.
 - **Google Drive 15 GB Cloud Storage Backbone**: Secure personal cloud space linked to user Google Identity provisioning `/EVA_CloudSpace/` with structured subdirectories: `/Sessions/`, `/Media/`, and `/Archives/`.
 - **9+ GB Minimum Free Space Quota Enforcement Engine**: Evaluates Google Drive `storageQuota` limit and usage metrics. Enforces that Available Free Space $\ge 9.0$ GB; blocks installation/vault initialization with exact deficit analytics if free storage is under 9 GB.
-- **YouTube Fullscreen Auto-Switch to Landscape**: True immersive theater mode with touch-aware play/pause gesture tracking, sensor landscape orientation lock, and screen wake lock during video playback.
 - **0ms Instant App Switching**: Multi-tab in-memory pooling with zero network reloading between tabs.
 - **Android Quick Settings Media Mini-Player**: Full `MediaSessionCompat` integration with `androidx.media.app.NotificationCompat.MediaStyle` rendering the native system media card with waveform seekbar and playback controls in notifications and lock screen.
 - **Gemini Context-Aware PiP**: Smart cognitive decision engine that intelligently activates PiP only for video streaming (YouTube, video streams) while suppressing PiP for social feeds (Instagram, Reddit, LinkedIn, Facebook) to prevent screen obstruction.
-- **Anti-App Redirection (Sandboxed Web Fidelity)**: Intercepts `intent://` and deep links (`instagram://`, `spotify://`, `twitter://`, `vnd.youtube:`) to prevent external installed apps from hijacking the session, keeping everything inside EVA.
+- **Anti-App Redirection (Sandboxed Web Fidelity)**: Intercepts `intent://` and deep links (`instagram://`, `spotify://`, `twitter://`, `vnd.youtube:`, `swiggy://`, `blinkit://`, `flipkart://`, `myntra://`) to prevent external installed apps from hijacking the session, keeping everything inside EVA.
 - **Zero Tracking Sandbox**: Strict security policies preventing cross-site local data extraction.
 
 ---

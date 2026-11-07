@@ -23,6 +23,7 @@ data class ServiceWebProfile(
     val allowThirdPartyCookies: Boolean = true,
     val allowCamera: Boolean = false,
     val allowMicrophone: Boolean = false,
+    val allowGeolocation: Boolean = false,
     val allowDownloads: Boolean = true,
     val allowFileUploads: Boolean = true,
     val allowPopups: Boolean = false,

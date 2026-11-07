@@ -13,6 +13,11 @@ class AppServiceCatalogTest {
         assertNotNull(AppServiceCatalog.getById("youtube"))
         assertNotNull(AppServiceCatalog.getById("spotify"))
         assertNotNull(AppServiceCatalog.getById("facebook"))
+        assertNotNull(AppServiceCatalog.getById("flipkart"))
+        assertNotNull(AppServiceCatalog.getById("amazon"))
+        assertNotNull(AppServiceCatalog.getById("myntra"))
+        assertNotNull(AppServiceCatalog.getById("instamart"))
+        assertNotNull(AppServiceCatalog.getById("blinkit"))
     }
 
     @Test
